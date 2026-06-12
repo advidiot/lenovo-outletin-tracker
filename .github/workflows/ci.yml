@@ -1,0 +1,42 @@
+name: Logaze India CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-node-version: '3.11'
+
+      - name: Check Python compilation
+        run: |
+          python3 -m py_compile app.py logaze_backend/*.py logaze_backend/**/*.py
+
+  validate-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: logaze/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./logaze
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./logaze
+        run: npm run build

@@ -1,0 +1,74 @@
+/*
+ * AG Grid theme override — maps our CSS vars onto balham-dark defaults.
+ * Wraps the #table-wrapper element.
+ */
+
+/* Container */
+#table-wrapper {
+  flex: 1;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Core overrides — applied via .ag-theme-balham-dark scoping */
+.ag-theme-balham-dark {
+  --ag-background-color:            var(--grid-bg);
+  --ag-foreground-color:            var(--text-primary);
+  --ag-header-background-color:     var(--grid-header-bg);
+  --ag-odd-row-background-color:    var(--grid-bg);
+  --ag-border-color:                var(--grid-border);
+  --ag-row-border-color:            var(--grid-border);
+  --ag-row-hover-color:             var(--grid-row-hover);
+  --ag-header-foreground-color:     var(--text-secondary);
+  --ag-secondary-foreground-color:  var(--text-muted);
+  --ag-input-border-color:          var(--border);
+  --ag-input-background-color:      var(--bg-tertiary);
+  --ag-balham-active-color:         var(--accent-teal);
+  --ag-selected-row-background-color: var(--accent-teal-light);
+  --ag-font-family:                 var(--font-sans);
+  --ag-font-size:                   13px;
+  --ag-row-height:                  36px;
+  --ag-header-height:               36px;
+  --ag-cell-horizontal-padding:     10px;
+  --ag-card-shadow:                 var(--card-shadow-md);
+  --ag-popup-shadow:                var(--card-shadow-lg);
+  --ag-menu-background-color:       var(--card-bg);
+  --ag-tooltip-background-color:    var(--card-bg);
+  --ag-side-bar-panel-width:        200px;
+  transition: --ag-background-color var(--transition-md);
+}
+
+/* Cell text */
+.ag-theme-balham-dark .ag-cell {
+  color: var(--text-primary);
+  line-height: var(--ag-row-height) !important;
+}
+
+/* Header */
+.ag-theme-balham-dark .ag-header {
+  border-bottom: 2px solid var(--border-strong);
+}
+.ag-theme-balham-dark .ag-header-cell-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+/* Filter popup */
+.ag-theme-balham-dark .ag-filter,
+.ag-theme-balham-dark .ag-filter-toolpanel-group-wrapper {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow-lg);
+}
+
+/* Scrollbar */
+.ag-theme-balham-dark .ag-body-horizontal-scroll,
+.ag-theme-balham-dark .ag-body-vertical-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}

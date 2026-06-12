@@ -1,0 +1,186 @@
+/* ============================================================
+   TrackFurb Design Tokens
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Light Theme (default) */
+:root {
+  /* Backgrounds */
+  --bg-primary:    #ffffff;
+  --bg-secondary:  #f8fafc;
+  --bg-tertiary:   #f1f5f9;
+  --bg-hover:      #e8f4f8;
+
+  /* Text */
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+  --text-inverse:   #ffffff;
+
+  /* Borders */
+  --border:         #e2e8f0;
+  --border-strong:  #cbd5e1;
+
+  /* Accents */
+  --accent-teal:        #0891b2;
+  --accent-teal-light:  #e0f2fe;
+  --accent-teal-hover:  #0e7490;
+  --accent-amber:       #f59e0b;
+  --accent-amber-light: #fef3c7;
+  --accent-green:       #10b981;
+  --accent-green-light: #d1fae5;
+  --accent-red:         #ef4444;
+  --accent-red-light:   #fee2e2;
+
+  /* Navbar */
+  --navbar-bg:      #ffffff;
+  --navbar-border:  #e2e8f0;
+  --navbar-height:  56px;
+
+  /* Sidebar */
+  --sidebar-width:  260px;
+  --sidebar-bg:     #f8fafc;
+  --sidebar-border: #e2e8f0;
+
+  /* Cards */
+  --card-bg:        #ffffff;
+  --card-border:    #e2e8f0;
+  --card-shadow:    0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --card-shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+  --card-shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.05);
+
+  /* Grid */
+  --grid-bg:        #ffffff;
+  --grid-row-hover: #f0f9ff;
+  --grid-header-bg: #f1f5f9;
+  --grid-border:    #e2e8f0;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius:    8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Transitions */
+  --transition: 150ms ease;
+  --transition-md: 250ms ease;
+
+  /* Fonts */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+/* Dark Theme */
+[data-theme="dark"] {
+  --bg-primary:    #0f172a;
+  --bg-secondary:  #1e293b;
+  --bg-tertiary:   #334155;
+  --bg-hover:      #1e3a4a;
+
+  --text-primary:   #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted:     #64748b;
+  --text-inverse:   #0f172a;
+
+  --border:         #334155;
+  --border-strong:  #475569;
+
+  --accent-teal:        #22d3ee;
+  --accent-teal-light:  #0c3344;
+  --accent-teal-hover:  #67e8f9;
+  --accent-amber:       #fbbf24;
+  --accent-amber-light: #3d2c00;
+  --accent-green:       #34d399;
+  --accent-green-light: #022c22;
+  --accent-red:         #f87171;
+  --accent-red-light:   #3b0000;
+
+  --navbar-bg:      #0f172a;
+  --navbar-border:  #1e293b;
+
+  --sidebar-bg:     #1e293b;
+  --sidebar-border: #334155;
+
+  --card-bg:        #1e293b;
+  --card-border:    #334155;
+  --card-shadow:    0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --card-shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3);
+  --card-shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -4px rgba(0,0,0,0.4);
+
+  --grid-bg:        #1e293b;
+  --grid-row-hover: #1e3a4a;
+  --grid-header-bg: #0f172a;
+  --grid-border:    #334155;
+}
+
+/* ============================================================
+   Global Utility Classes
+   ============================================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.badge-green  { background: var(--accent-green-light); color: var(--accent-green); }
+.badge-amber  { background: var(--accent-amber-light); color: var(--accent-amber); }
+.badge-red    { background: var(--accent-red-light);   color: var(--accent-red); }
+.badge-teal   { background: var(--accent-teal-light);  color: var(--accent-teal); }
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: none;
+  transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+  text-decoration: none;
+}
+
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: var(--accent-teal);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--accent-teal-hover); }
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { background: var(--border); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+.btn-sm { padding: 5px 10px; font-size: 0.8rem; }
+.btn-lg { padding: 11px 22px; font-size: 1rem; }
+.btn-full { width: 100%; justify-content: center; }
+
+.btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }

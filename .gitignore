@@ -1,0 +1,40 @@
+# Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+
+# Frontend dependencies and builds
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Local databases and logs
+*.db
+*.log
+logaze_laptops.json
+
+# Environment variables & secrets
+.env
+.env.*
+.secrets
+
+# Compressed artifacts
+dist.tar.gz
+logaze.tar.gz
+release.tar.gz
+
+# Local docs (ignored)
+local_docs/
+
+# Archival files (ignored)
+archival/
+
+# Runtime data (ignored)
+data/
+
+

@@ -1,0 +1,129 @@
+.static-page {
+  min-height: calc(100vh - var(--navbar-height));
+  background: var(--bg-secondary);
+  padding: 40px 16px 80px;
+}
+
+.static-page-inner {
+  max-width: 680px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.static-back { margin-bottom: -10px; }
+
+.back-link {
+  font-size: 0.85rem;
+  color: var(--accent-teal);
+  font-weight: 500;
+  text-decoration: none;
+}
+.back-link:hover { text-decoration: underline; }
+
+.static-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.static-subtitle {
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-top: -16px;
+}
+
+.about-icon {
+  font-size: 3rem;
+  text-align: center;
+}
+
+.static-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.static-content p {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.static-content a {
+  color: var(--accent-teal);
+}
+
+/* Feature cards */
+.about-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.about-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.about-feature-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.about-feature strong {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.about-feature p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.static-footer-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+/* FAQ */
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.faq-item {
+  padding: 18px 20px;
+}
+
+.faq-question {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.faq-answer {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+@media (max-width: 600px) {
+  .about-features {
+    grid-template-columns: 1fr;
+  }
+}
