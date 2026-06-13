@@ -20,6 +20,14 @@ console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
 logger.addHandler(console_handler)
 
+# Configure discord logger to route to our handlers
+discord_logger = logging.getLogger("discord")
+discord_logger.setLevel(logging.WARNING)
+if discord_logger.hasHandlers():
+    discord_logger.handlers.clear()
+discord_logger.addHandler(file_handler)
+discord_logger.addHandler(console_handler)
+
 def _log(message: str) -> None:
     """Log a message to rotating file and stdout."""
     logger.info(message)
