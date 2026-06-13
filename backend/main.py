@@ -237,6 +237,16 @@ def run_discord_bot() -> None:
         loop.run_until_complete(start_bot())
     except Exception as e:
         _log(f"[Discord] Event loop error: {e}")
+    finally:
+        try:
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            loop.close()
+        except Exception:
+            pass
 
 # ---------------------------------------------------------------------------
 # Main Entry Point
