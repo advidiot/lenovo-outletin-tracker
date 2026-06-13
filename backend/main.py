@@ -32,6 +32,7 @@ from backend.notifier.push import (
 # Global state
 _shutdown_requested = False
 scraper_lock = threading.Lock()
+httpd = None
 
 def trigger_manual_scrape(is_first_run: bool = False) -> dict:
     """Run a manual scrape process under scraper lock. Returns status dictionary."""
@@ -93,6 +94,8 @@ def _handle_shutdown(signum: int, frame) -> None:
     global _shutdown_requested
     _shutdown_requested = True
     _log(f"Received shutdown signal {signum}. Shutting down gracefully…")
+    if httpd:
+        threading.Thread(target=httpd.shutdown, daemon=True).start()
 
 # ---------------------------------------------------------------------------
 # Background Scraper Loop & Daemon
@@ -343,6 +346,7 @@ def main() -> None:
     scraper_thread = threading.Thread(target=run_scraper_loop, args=(args,), daemon=True)
     scraper_thread.start()
 
+    global httpd
     # Start multi-threaded HTTP server
     server_address = ('', settings.PORT)
     httpd = ThreadingHTTPServer(server_address, LaptopTrackerHandler)
