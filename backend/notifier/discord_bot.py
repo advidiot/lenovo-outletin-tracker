@@ -33,6 +33,34 @@ def get_discord_bot() -> Optional["LogazeBot"]:
     return _discord_bot
 
 if is_discord_enabled():
+    import aiohttp
+
+    async def _publish_message_non_blocking(channel_id: int, message_id: int) -> None:
+        """Publish/crosspost a message in an announcement channel using raw HTTP to avoid blocking on 429."""
+        if not settings.DISCORD_BOT_TOKEN:
+            return
+        url = f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}/crosspost"
+        headers = {
+            "Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers) as resp:
+                    if resp.status in (200, 201):
+                        _log(f"[Discord] Successfully published message {message_id} in channel {channel_id}")
+                    elif resp.status == 429:
+                        try:
+                            data = await resp.json()
+                            retry_after = data.get("retry_after", 0)
+                            _log(f"[Discord] Rate limited (429) publishing message {message_id} in channel {channel_id}. Retry after {retry_after}s. Skipping to avoid blocking bot.")
+                        except Exception:
+                            _log(f"[Discord] Rate limited (429) publishing message {message_id} in channel {channel_id}. Skipping to avoid blocking bot.")
+                    else:
+                        _log(f"[Discord] Failed to publish message {message_id} in channel {channel_id}: HTTP {resp.status}")
+        except Exception as e:
+            _log(f"[Discord] Error during non-blocking publish for message {message_id} in channel {channel_id}: {e}")
+
     async def check_authorized(interaction: discord.Interaction) -> bool:
         if interaction.user.id == settings.OWNER_USER_ID:
             return True
@@ -942,20 +970,14 @@ async def _send_compact_alerts(
         if len(current_msg) + len(line) + 2 > 2000:
             msg = await channel.send(current_msg)
             if channel.type == discord.ChannelType.news:
-                try:
-                    await msg.publish()
-                except Exception as e:
-                    _log(f"[Discord] Failed to publish compact message in channel {channel.id}: {e}")
+                asyncio.create_task(_publish_message_non_blocking(channel.id, msg.id))
             current_msg = ""
         current_msg += line + "\n"
     
     if current_msg:
         msg = await channel.send(current_msg)
         if channel.type == discord.ChannelType.news:
-            try:
-                await msg.publish()
-            except Exception as e:
-                _log(f"[Discord] Failed to publish compact message in channel {channel.id}: {e}")
+            asyncio.create_task(_publish_message_non_blocking(channel.id, msg.id))
 
 
 def dispatch_discord_alerts(
@@ -1017,37 +1039,45 @@ def dispatch_discord_alerts(
                 if not channel:
                     return
 
-                # Send up to 15 as embeds, with a 0.5s delay
-                send_compact = False
-                for idx, product in enumerate(products):
-                    if idx >= 15 or send_compact:
-                        # Compact mode for remaining
-                        compact_products = products[idx:]
-                        await _send_compact_alerts(channel, compact_products, event_type, old_price, ping_role_id)
-                        break
+                # Send up to 20 as embeds (grouped in batches of up to 10), remaining compact
+                max_embeds_count = 20
+                embed_products = products[:max_embeds_count]
+                compact_products = products[max_embeds_count:]
 
-                    try:
-                        embed = _build_product_embed(product, event_type, old_price)
-                        content = f"<@&{ping_role_id}>" if ping_role_id else None
-                        msg = await channel.send(content=content, embed=embed)
-                        if channel.type == discord.ChannelType.news:
-                            try:
-                                await msg.publish()
-                            except Exception as e:
-                                _log(f"[Discord] Failed to publish message in channel {channel.id}: {e}")
-                        await asyncio.sleep(0.5)
-                    except discord.errors.HTTPException as he:
-                        if he.status == 429:
-                            _log(f"[Discord] Rate limit hit (429) mid-batch for channel {cid}. Switching to compact mode.")
-                            send_compact = True
-                            # Send this and remaining as compact
-                            compact_products = products[idx:]
-                            await _send_compact_alerts(channel, compact_products, event_type, old_price, ping_role_id)
-                            break
-                        else:
-                            _log(f"[Discord] HTTP error sending embed to channel {cid}: {he}")
-                    except Exception as ex:
-                         _log(f"[Discord] Error sending embed to channel {cid}: {ex}")
+                ping_sent = False
+                for i in range(0, len(embed_products), 10):
+                    batch = embed_products[i:i+10]
+                    embeds = []
+                    for product in batch:
+                        try:
+                            embeds.append(_build_product_embed(product, event_type, old_price))
+                        except Exception as e:
+                            _log(f"[Discord] Error building embed for product: {e}")
+
+                    if embeds:
+                        content = None
+                        if ping_role_id and not ping_sent:
+                            content = f"<@&{ping_role_id}>"
+                            ping_sent = True
+
+                        try:
+                            msg = await channel.send(content=content, embeds=embeds)
+                            if channel.type == discord.ChannelType.news:
+                                asyncio.create_task(_publish_message_non_blocking(channel.id, msg.id))
+                            await asyncio.sleep(0.5)
+                        except discord.errors.HTTPException as he:
+                            if he.status == 429:
+                                _log(f"[Discord] Rate limit hit (429) sending embeds to channel {cid}. Switching remainder to compact.")
+                                remainder = products[i:]
+                                await _send_compact_alerts(channel, remainder, event_type, old_price, None if ping_sent else ping_role_id)
+                                return
+                            else:
+                                _log(f"[Discord] HTTP error sending embeds batch to channel {cid}: {he}")
+                        except Exception as ex:
+                            _log(f"[Discord] Error sending embeds batch to channel {cid}: {ex}")
+
+                if compact_products:
+                    await _send_compact_alerts(channel, compact_products, event_type, old_price, None if ping_sent else ping_role_id)
 
             except Exception as ex:
                 _log(f"[Discord] Failed to send notifications to channel {cid}: {ex}")
