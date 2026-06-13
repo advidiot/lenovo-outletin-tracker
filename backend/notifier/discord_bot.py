@@ -108,7 +108,10 @@ if is_discord_enabled():
         app_commands.Choice(name="Active Alerts (Added, Price Changes)", value="active"),
         app_commands.Choice(name="Removed Alerts Only (Sold Out)", value="removed"),
         app_commands.Choice(name="Added Alerts Only (New Stock)", value="added"),
-        app_commands.Choice(name="Price Changes Only", value="price_changes")
+        app_commands.Choice(name="Price Changes Only", value="price_changes"),
+        app_commands.Choice(name="Restocks & Price Drops Only", value="added_price_drop"),
+        app_commands.Choice(name="Price Drops Only", value="price_drop"),
+        app_commands.Choice(name="Price Hikes Only", value="price_hike")
     ])
     async def subscribe_command(
         interaction: discord.Interaction,
@@ -137,6 +140,12 @@ if is_discord_enabled():
             db_event_types = "added"
         elif event_type == "price_changes":
             db_event_types = "price_drop,price_hike"
+        elif event_type == "added_price_drop":
+            db_event_types = "added,price_drop"
+        elif event_type == "price_drop":
+            db_event_types = "price_drop"
+        elif event_type == "price_hike":
+            db_event_types = "price_hike"
 
         def db_op():
             conn = get_db_connection()
@@ -198,6 +207,12 @@ if is_discord_enabled():
                 et_desc = "Added Only (New Stock)"
             elif event_type == "price_changes":
                 et_desc = "Price Changes Only"
+            elif event_type == "added_price_drop":
+                et_desc = "Restocks & Price Drops Only"
+            elif event_type == "price_drop":
+                et_desc = "Price Drops Only"
+            elif event_type == "price_hike":
+                et_desc = "Price Hikes Only"
             embed.add_field(name="Event Types", value=et_desc, inline=True)
             
             if ping_role_added:
@@ -287,6 +302,12 @@ if is_discord_enabled():
                 et_desc = "Added Only (New Stock)"
             elif et == "price_drop,price_hike":
                 et_desc = "Price Changes Only"
+            elif et == "added,price_drop":
+                et_desc = "Restocks & Price Drops Only"
+            elif et == "price_drop":
+                et_desc = "Price Drops Only"
+            elif et == "price_hike":
+                et_desc = "Price Hikes Only"
             elif et != "all":
                 et_desc = et
             embed.add_field(name="Event Types", value=et_desc, inline=True)
@@ -357,6 +378,12 @@ if is_discord_enabled():
                     et_desc = "Added Only (New Stock)"
                 elif et == "price_drop,price_hike":
                     et_desc = "Price Changes Only"
+                elif et == "added,price_drop":
+                    et_desc = "Restocks & Price Drops Only"
+                elif et == "price_drop":
+                    et_desc = "Price Drops Only"
+                elif et == "price_hike":
+                    et_desc = "Price Hikes Only"
                 elif et != "all":
                     et_desc = et
                 filters.append(f"Event Types: `{et_desc}`")
