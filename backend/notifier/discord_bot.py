@@ -89,7 +89,7 @@ if is_discord_enabled():
         async def on_ready(self):
             _log(f"[Discord] Bot ready as {self.user} (ID: {self.user.id})")
 
-    # Commands Definition
+    # Commands Definition (Pings version 1.0)
     @app_commands.command(name="subscribe", description="Subscribe current channel to Lenovo Outlet alerts.")
     @app_commands.describe(
         brands="Comma-separated brands (e.g. thinkpad,legion,loq,ideapad,yoga,slim)",
