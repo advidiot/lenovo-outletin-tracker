@@ -940,12 +940,22 @@ async def _send_compact_alerts(
     current_msg = header
     for line in lines:
         if len(current_msg) + len(line) + 2 > 2000:
-            await channel.send(current_msg)
+            msg = await channel.send(current_msg)
+            if channel.type == discord.ChannelType.news:
+                try:
+                    await msg.crosspost()
+                except Exception as e:
+                    _log(f"[Discord] Failed to crosspost compact message in channel {channel.id}: {e}")
             current_msg = ""
         current_msg += line + "\n"
     
     if current_msg:
-        await channel.send(current_msg)
+        msg = await channel.send(current_msg)
+        if channel.type == discord.ChannelType.news:
+            try:
+                await msg.crosspost()
+            except Exception as e:
+                _log(f"[Discord] Failed to crosspost compact message in channel {channel.id}: {e}")
 
 
 def dispatch_discord_alerts(
@@ -1019,7 +1029,12 @@ def dispatch_discord_alerts(
                     try:
                         embed = _build_product_embed(product, event_type, old_price)
                         content = f"<@&{ping_role_id}>" if ping_role_id else None
-                        await channel.send(content=content, embed=embed)
+                        msg = await channel.send(content=content, embed=embed)
+                        if channel.type == discord.ChannelType.news:
+                            try:
+                                await msg.crosspost()
+                            except Exception as e:
+                                _log(f"[Discord] Failed to crosspost message in channel {channel.id}: {e}")
                         await asyncio.sleep(0.5)
                     except discord.errors.HTTPException as he:
                         if he.status == 429:
