@@ -684,7 +684,14 @@ def _matches_subscription(product: dict, sub: dict) -> bool:
         product_name = (product.get("productName") or "").lower()
         model_name = (product.get("model") or "").lower()
         brand_list = [b.strip().lower() for b in sub_brands.split(",") if b.strip()]
-        if brand_list and not any(brand in product_name or brand in model_name for brand in brand_list):
+        pos_brands = [b for b in brand_list if not b.startswith("!")]
+        neg_brands = [b[1:] for b in brand_list if b.startswith("!")]
+        
+        # Exclude if any negative brand matches
+        if neg_brands and any(brand in product_name or brand in model_name for brand in neg_brands):
+            return False
+        # Require positive brand match if positive filters are specified
+        if pos_brands and not any(brand in product_name or brand in model_name for brand in pos_brands):
             return False
 
     keywords = sub["keywords"]
@@ -692,7 +699,14 @@ def _matches_subscription(product: dict, sub: dict) -> bool:
         product_name = (product.get("productName") or "").lower()
         model_name = (product.get("model") or "").lower()
         keyword_list = [k.strip().lower() for k in keywords.split(",") if k.strip()]
-        if keyword_list and not any(kw in product_name or kw in model_name for kw in keyword_list):
+        pos_keywords = [k for k in keyword_list if not k.startswith("!")]
+        neg_keywords = [k[1:] for k in keyword_list if k.startswith("!")]
+        
+        # Exclude if any negative keyword matches
+        if neg_keywords and any(kw in product_name or kw in model_name for kw in neg_keywords):
+            return False
+        # Require positive keyword match if positive filters are specified
+        if pos_keywords and not any(kw in product_name or kw in model_name for kw in pos_keywords):
             return False
 
     sub_conditions = sub["conditions"]
