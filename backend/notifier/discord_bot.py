@@ -1039,8 +1039,8 @@ def dispatch_discord_alerts(
                 if not channel:
                     return
 
-                # Send up to 20 as embeds (grouped in batches of up to 10), remaining compact
-                max_embeds_count = 20
+                # Send up to 10 as embeds (grouped in a batch), remaining compact
+                max_embeds_count = 10
                 embed_products = products[:max_embeds_count]
                 compact_products = products[max_embeds_count:]
 
