@@ -19,7 +19,7 @@ jobs:
 
       - name: Check Python compilation
         run: |
-          python3 -m py_compile app.py logaze_backend/*.py logaze_backend/**/*.py
+          python3 -m py_compile app.py backend/*.py backend/**/*.py
 
   validate-frontend:
     runs-on: ubuntu-latest
@@ -31,12 +31,12 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: logaze/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./logaze
+        working-directory: ./frontend
         run: npm ci
 
       - name: Build frontend
-        working-directory: ./logaze
+        working-directory: ./frontend
         run: npm run build
