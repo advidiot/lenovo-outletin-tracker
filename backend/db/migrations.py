@@ -292,6 +292,29 @@ def run_migrations() -> None:
             conn.commit()
             _log("Migration 6 applied successfully.")
             current_version = 6
+
+        if current_version < 7:
+            _log("Applying migration 7: Add individual ping role columns to discord_subscriptions.")
+            
+            cursor.execute("PRAGMA table_info(discord_subscriptions)")
+            sub_columns = [row[1] for row in cursor.fetchall()]
+            
+            new_cols = [
+                ("ping_role_added_id", "TEXT"),
+                ("ping_role_removed_id", "TEXT"),
+                ("ping_role_price_drop_id", "TEXT"),
+                ("ping_role_price_hike_id", "TEXT")
+            ]
+            
+            for col_name, col_type in new_cols:
+                if col_name not in sub_columns:
+                    _log(f"Adding column '{col_name}' to discord_subscriptions table.")
+                    cursor.execute(f"ALTER TABLE discord_subscriptions ADD COLUMN {col_name} {col_type}")
+            
+            cursor.execute("UPDATE schema_version SET version = 7")
+            conn.commit()
+            _log("Migration 7 applied successfully.")
+            current_version = 7
             
     finally:
         conn.close()

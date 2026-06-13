@@ -97,7 +97,11 @@ if is_discord_enabled():
         max_price="Alert only if price is less than or equal to this value",
         keywords="Comma-separated keywords to search in product name",
         conditions="Comma-separated conditions (e.g. certified refurbished)",
-        event_type="Select which alert events to send to this channel"
+        event_type="Select which alert events to send to this channel",
+        ping_role_added="Discord role to ping when a laptop is added/back in stock",
+        ping_role_removed="Discord role to ping when a laptop is sold out/removed",
+        ping_role_price_drop="Discord role to ping when a laptop price decreases",
+        ping_role_price_hike="Discord role to ping when a laptop price increases"
     )
     @app_commands.choices(event_type=[
         app_commands.Choice(name="All Alerts (Added, Removed, Price Changes)", value="all"),
@@ -113,7 +117,11 @@ if is_discord_enabled():
         max_price: Optional[float] = None,
         keywords: Optional[str] = None,
         conditions: Optional[str] = None,
-        event_type: Optional[str] = "all"
+        event_type: Optional[str] = "all",
+        ping_role_added: Optional[discord.Role] = None,
+        ping_role_removed: Optional[discord.Role] = None,
+        ping_role_price_drop: Optional[discord.Role] = None,
+        ping_role_price_hike: Optional[discord.Role] = None
     ):
         if not await check_authorized(interaction):
             return
@@ -138,11 +146,32 @@ if is_discord_enabled():
                 clean_keywords = ",".join([k.strip().lower() for k in keywords.split(",") if k.strip()]) if keywords else None
                 clean_conditions = ",".join([c.strip().lower() for c in conditions.split(",") if c.strip()]) if conditions else None
                 now = current_time()
+                r_added_id = str(ping_role_added.id) if ping_role_added else None
+                r_removed_id = str(ping_role_removed.id) if ping_role_removed else None
+                r_price_drop_id = str(ping_role_price_drop.id) if ping_role_price_drop else None
+                r_price_hike_id = str(ping_role_price_hike.id) if ping_role_price_hike else None
                 cursor.execute("""
                     INSERT OR REPLACE INTO discord_subscriptions 
-                    (channel_id, guild_id, min_savings, max_price, brands, keywords, conditions, event_types, created_at, updated_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (str(interaction.channel_id), str(interaction.guild_id), min_savings, max_price, clean_brands, clean_keywords, clean_conditions, db_event_types, now, str(interaction.user.id)))
+                    (channel_id, guild_id, min_savings, max_price, brands, keywords, conditions, event_types, 
+                     ping_role_added_id, ping_role_removed_id, ping_role_price_drop_id, ping_role_price_hike_id, 
+                     created_at, updated_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    str(interaction.channel_id),
+                    str(interaction.guild_id),
+                    min_savings,
+                    max_price,
+                    clean_brands,
+                    clean_keywords,
+                    clean_conditions,
+                    db_event_types,
+                    r_added_id,
+                    r_removed_id,
+                    r_price_drop_id,
+                    r_price_hike_id,
+                    now,
+                    str(interaction.user.id)
+                ))
                 conn.commit()
             finally:
                 conn.close()
@@ -170,6 +199,15 @@ if is_discord_enabled():
             elif event_type == "price_changes":
                 et_desc = "Price Changes Only"
             embed.add_field(name="Event Types", value=et_desc, inline=True)
+            
+            if ping_role_added:
+                embed.add_field(name="Ping (Added)", value=ping_role_added.mention, inline=True)
+            if ping_role_removed:
+                embed.add_field(name="Ping (Removed)", value=ping_role_removed.mention, inline=True)
+            if ping_role_price_drop:
+                embed.add_field(name="Ping (Price Drop)", value=ping_role_price_drop.mention, inline=True)
+            if ping_role_price_hike:
+                embed.add_field(name="Ping (Price Hike)", value=ping_role_price_hike.mention, inline=True)
             
             embed.set_footer(text="Logaze India • Lenovo Outlet Tracker")
             await interaction.followup.send(embed=embed)
@@ -253,6 +291,15 @@ if is_discord_enabled():
                 et_desc = et
             embed.add_field(name="Event Types", value=et_desc, inline=True)
             
+            if sub.get("ping_role_added_id"):
+                embed.add_field(name="Ping (Added)", value=f"<@&{sub['ping_role_added_id']}>", inline=True)
+            if sub.get("ping_role_removed_id"):
+                embed.add_field(name="Ping (Removed)", value=f"<@&{sub['ping_role_removed_id']}>", inline=True)
+            if sub.get("ping_role_price_drop_id"):
+                embed.add_field(name="Ping (Price Drop)", value=f"<@&{sub['ping_role_price_drop_id']}>", inline=True)
+            if sub.get("ping_role_price_hike_id"):
+                embed.add_field(name="Ping (Price Hike)", value=f"<@&{sub['ping_role_price_hike_id']}>", inline=True)
+            
             embed.set_footer(text="Logaze India • Lenovo Outlet Tracker")
             await interaction.followup.send(embed=embed)
         except Exception as e:
@@ -313,6 +360,15 @@ if is_discord_enabled():
                 elif et != "all":
                     et_desc = et
                 filters.append(f"Event Types: `{et_desc}`")
+                
+                if sub.get("ping_role_added_id"):
+                    filters.append(f"Ping (Added): <@&{sub['ping_role_added_id']}>")
+                if sub.get("ping_role_removed_id"):
+                    filters.append(f"Ping (Removed): <@&{sub['ping_role_removed_id']}>")
+                if sub.get("ping_role_price_drop_id"):
+                    filters.append(f"Ping (Price Drop): <@&{sub['ping_role_price_drop_id']}>")
+                if sub.get("ping_role_price_hike_id"):
+                    filters.append(f"Ping (Price Hike): <@&{sub['ping_role_price_hike_id']}>")
                 
                 filter_text = "\n".join(filters)
                 embed.add_field(name=channel_mention, value=filter_text, inline=False)
@@ -795,9 +851,16 @@ def _build_product_embed(product: dict, event_type: str, old_price: Optional[flo
     return embed
 
 
-async def _send_compact_alerts(channel, products: list, event_type: str, old_price: Optional[float] = None) -> None:
+async def _send_compact_alerts(
+    channel,
+    products: list,
+    event_type: str,
+    old_price: Optional[float] = None,
+    ping_role_id: Optional[str] = None
+) -> None:
     """Format and send product alerts as a compact summary message, handling 2000 character limit."""
-    header = f"🔔 **Logaze India: Multiple Laptop Alerts (Channel Digest)**\n"
+    ping_prefix = f"<@&{ping_role_id}> " if ping_role_id else ""
+    header = f"{ping_prefix}🔔 **Logaze India: Multiple Laptop Alerts (Channel Digest)**\n"
     lines = []
     
     event_actions = {
@@ -896,9 +959,20 @@ def dispatch_discord_alerts(
             continue
 
         cid = sub["channel_id"]
+        
+        # Determine the ping role for this event type
+        ping_role_id = None
+        if event_type == "added":
+            ping_role_id = sub.get("ping_role_added_id")
+        elif event_type == "removed":
+            ping_role_id = sub.get("ping_role_removed_id")
+        elif event_type == "price_drop":
+            ping_role_id = sub.get("ping_role_price_drop_id")
+        elif event_type == "price_hike":
+            ping_role_id = sub.get("ping_role_price_hike_id")
 
         # Schedule sending to channel
-        async def send_to_channel(cid=cid, products=matching_products):
+        async def send_to_channel(cid=cid, products=matching_products, ping_role_id=ping_role_id):
             try:
                 channel = _discord_bot.get_channel(int(cid))
                 if not channel:
@@ -912,12 +986,13 @@ def dispatch_discord_alerts(
                     if idx >= 15 or send_compact:
                         # Compact mode for remaining
                         compact_products = products[idx:]
-                        await _send_compact_alerts(channel, compact_products, event_type, old_price)
+                        await _send_compact_alerts(channel, compact_products, event_type, old_price, ping_role_id)
                         break
 
                     try:
                         embed = _build_product_embed(product, event_type, old_price)
-                        await channel.send(embed=embed)
+                        content = f"<@&{ping_role_id}>" if ping_role_id else None
+                        await channel.send(content=content, embed=embed)
                         await asyncio.sleep(0.5)
                     except discord.errors.HTTPException as he:
                         if he.status == 429:
@@ -925,12 +1000,12 @@ def dispatch_discord_alerts(
                             send_compact = True
                             # Send this and remaining as compact
                             compact_products = products[idx:]
-                            await _send_compact_alerts(channel, compact_products, event_type, old_price)
+                            await _send_compact_alerts(channel, compact_products, event_type, old_price, ping_role_id)
                             break
                         else:
                             _log(f"[Discord] HTTP error sending embed to channel {cid}: {he}")
                     except Exception as ex:
-                        _log(f"[Discord] Error sending embed to channel {cid}: {ex}")
+                         _log(f"[Discord] Error sending embed to channel {cid}: {ex}")
 
             except Exception as ex:
                 _log(f"[Discord] Failed to send notifications to channel {cid}: {ex}")
