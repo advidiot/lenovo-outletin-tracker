@@ -130,6 +130,20 @@ def run_scraper_loop(args):
             send_startup_alert(db_count)
             send_telegram_startup_alert(db_count)
 
+    # Wait for Discord bot to connect and be ready if enabled
+    if not args.silent:
+        from backend.notifier.discord_bot import is_discord_enabled, get_discord_bot
+        if is_discord_enabled():
+            _log("Waiting for Discord bot to connect and be ready before starting scans...")
+            for _ in range(60):
+                bot = get_discord_bot()
+                if bot and bot.is_ready():
+                    _log("Discord bot is ready. Starting scraper scans.")
+                    break
+                time.sleep(0.5)
+            else:
+                _log("Warning: Discord bot is still not ready after 30 seconds. Proceeding with scans anyway.")
+
     while not _shutdown_requested:
         cycle += 1
         try:
