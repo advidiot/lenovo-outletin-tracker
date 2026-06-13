@@ -6,6 +6,7 @@ import { FilterSidebar, FilterState, DEFAULT_FILTERS } from "../components/Filte
 import { FloatingCompareBar } from "../components/FloatingCompareBar";
 import { MobileCardList } from "../components/MobileCardList";
 import { useToast } from "../components/ToastProvider";
+import { retrieveSettings } from "../gridSettings";
 import Grid, { GridHandle } from "../Grid";
 import "./DashboardPage.css";
 
@@ -116,6 +117,37 @@ function applyFilters(
   });
 }
 
+function sortLaptops(data: LaptopData[], sortBy: string): LaptopData[] {
+  const sorted = [...data];
+  if (sortBy === "price-asc") {
+    sorted.sort((a, b) => Number(a["price"] || 0) - Number(b["price"] || 0));
+  } else if (sortBy === "price-desc") {
+    sorted.sort((a, b) => Number(b["price"] || 0) - Number(a["price"] || 0));
+  } else if (sortBy === "newest") {
+    sorted.sort((a, b) => {
+      const aVal = String(a["first_seen"] || "");
+      const bVal = String(b["first_seen"] || "");
+      return bVal.localeCompare(aVal);
+    });
+  } else if (sortBy === "savings-desc") {
+    sorted.sort((a, b) => Number(b["percentage-savings"] || 0) - Number(a["percentage-savings"] || 0));
+  } else if (sortBy.endsWith("-asc") || sortBy.endsWith("-desc")) {
+    const dashIndex = sortBy.lastIndexOf("-");
+    const colId = sortBy.substring(0, dashIndex);
+    const direction = sortBy.substring(dashIndex + 1);
+    sorted.sort((a, b) => {
+      const aVal = a[colId];
+      const bVal = b[colId];
+      if (aVal === bVal) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      const compareResult = aVal > bVal ? 1 : -1;
+      return direction === "asc" ? compareResult : -compareResult;
+    });
+  }
+  return sorted;
+}
+
 export const DashboardPage = ({
   laptopData,
   lastModified,
@@ -135,6 +167,24 @@ export const DashboardPage = ({
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(
     searchParams.get("watchlist") === "1"
   );
+  const [sortBy, setSortBy] = useState<string>(() => {
+    try {
+      const settings = retrieveSettings();
+      if (settings && settings.columnState) {
+        const sorted = settings.columnState.find((c) => c.sort != null);
+        if (sorted) {
+          if (sorted.colId === "price" && sorted.sort === "asc") return "price-asc";
+          if (sorted.colId === "price" && sorted.sort === "desc") return "price-desc";
+          if (sorted.colId === "first_seen" && sorted.sort === "desc") return "newest";
+          if (sorted.colId === "percentage-savings" && sorted.sort === "desc") return "savings-desc";
+          return `${sorted.colId}-${sorted.sort}`;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return "price-asc";
+  });
 
   useEffect(() => {
     setShowWatchlistOnly(searchParams.get("watchlist") === "1");
@@ -148,8 +198,9 @@ export const DashboardPage = ({
           watchlist.includes(String(item["product-number"]))
         )
       : laptopData;
-    return applyFilters(base, filters, searchQuery);
-  }, [laptopData, filters, searchQuery, showWatchlistOnly, watchlist]);
+    const filtered = applyFilters(base, filters, searchQuery);
+    return sortLaptops(filtered, sortBy);
+  }, [laptopData, filters, searchQuery, showWatchlistOnly, watchlist, sortBy]);
 
   const handleBestDealClick = useCallback(
     (code: string) => navigate(`/laptop/${code}`),
@@ -163,7 +214,37 @@ export const DashboardPage = ({
 
   const handleResetFilters = useCallback(() => {
     setFilters(DEFAULT_FILTERS);
+    setSortBy("price-asc");
     gridRef.current?.resetGrid();
+  }, []);
+
+  const handleSortChange = useCallback((newSortBy: string) => {
+    setSortBy(newSortBy);
+    if (newSortBy === "price-asc") {
+      gridRef.current?.applySort("price", "asc");
+    } else if (newSortBy === "price-desc") {
+      gridRef.current?.applySort("price", "desc");
+    } else if (newSortBy === "newest") {
+      gridRef.current?.applySort("first_seen", "desc");
+    } else if (newSortBy === "savings-desc") {
+      gridRef.current?.applySort("percentage-savings", "desc");
+    } else if (newSortBy.endsWith("-asc") || newSortBy.endsWith("-desc")) {
+      const dashIndex = newSortBy.lastIndexOf("-");
+      const colId = newSortBy.substring(0, dashIndex);
+      const sort = newSortBy.substring(dashIndex + 1) as "asc" | "desc";
+      gridRef.current?.applySort(colId, sort);
+    }
+  }, []);
+
+  const handleGridSortChanged = useCallback((colId: string, sort: "asc" | "desc" | null) => {
+    let newSortBy = "price-asc";
+    if (colId === "price" && sort === "asc") newSortBy = "price-asc";
+    else if (colId === "price" && sort === "desc") newSortBy = "price-desc";
+    else if (colId === "first_seen" && sort === "desc") newSortBy = "newest";
+    else if (colId === "percentage-savings" && sort === "desc") newSortBy = "savings-desc";
+    else if (colId && sort) newSortBy = `${colId}-${sort}`;
+    
+    setSortBy(newSortBy);
   }, []);
 
   const handleToggleWatch = useCallback(
@@ -246,6 +327,23 @@ export const DashboardPage = ({
         </div>
 
         <div className="toolbar-right">
+          <div className="toolbar-sort">
+            <span className="sort-label">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value)}
+              className="select-sort"
+            >
+              <option value="price-asc">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
+              <option value="newest">Newest First</option>
+              <option value="savings-desc">Savings: High to Low</option>
+              {!["price-asc", "price-desc", "newest", "savings-desc"].includes(sortBy) && (
+                <option value={sortBy}>Sorted: Custom</option>
+              )}
+            </select>
+          </div>
+
           <button
             className={`btn btn-sm ${
               showWatchlistOnly ? "btn-primary" : "btn-ghost"
@@ -297,6 +395,7 @@ export const DashboardPage = ({
               compareList={compareList}
               toggleCompare={handleToggleCompare}
               onRowSelected={handleRowSelected}
+              onSortChanged={handleGridSortChanged}
             />
           </div>
 

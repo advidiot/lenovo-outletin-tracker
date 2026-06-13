@@ -117,6 +117,18 @@ export const MobileCardList = ({
                 {laptop["processor-brand"] && (
                   <span className="spec-chip">{String(laptop["processor-brand"])}</span>
                 )}
+                {laptop["first_seen"] && (
+                  <span className="spec-chip" title="First Tracked">
+                    📅 {(() => {
+                      try {
+                        const d = new Date(String(laptop["first_seen"]).replace(" ", "T"));
+                        return d.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' });
+                      } catch {
+                        return String(laptop["first_seen"]);
+                      }
+                    })()}
+                  </span>
+                )}
               </div>
             </div>
 

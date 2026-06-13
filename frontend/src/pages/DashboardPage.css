@@ -37,6 +37,41 @@
 
 .mobile-only-btn { display: none; }
 
+.toolbar-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sort-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.select-sort {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 4px 10px 4px 6px;
+  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: border-color var(--transition), background-color var(--transition);
+}
+
+.select-sort:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-tertiary);
+}
+
+.select-sort:focus {
+  border-color: var(--accent-teal);
+}
+
 /* Main content */
 .dashboard-content {
   display: flex;

@@ -230,6 +230,35 @@ const columnDefs: ColDef[] = [
     cellRenderer: PriceRenderer,
   },
   { headerName: "Condition", field: "product-condition", width: 70 },
+  {
+    headerName: "First Tracked",
+    field: "first_seen",
+    width: 100,
+    valueFormatter: ({ value }) => {
+      if (!value) return "";
+      try {
+        const d = new Date(value.replace(" ", "T"));
+        return d.toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' });
+      } catch (e) {
+        return value;
+      }
+    },
+    filter: "agDateColumnFilter",
+    filterParams: {
+      comparator: (filterLocalDateAtMidnight: Date, cellValue: string) => {
+        if (!cellValue) return -1;
+        const cellDate = new Date(cellValue.replace(" ", "T"));
+        cellDate.setHours(0, 0, 0, 0);
+        if (cellDate.getTime() === filterLocalDateAtMidnight.getTime()) {
+          return 0;
+        }
+        if (cellDate.getTime() < filterLocalDateAtMidnight.getTime()) {
+          return -1;
+        }
+        return 1;
+      }
+    }
+  },
   { headerName: "Model", field: "model" },
   {
     headerName: "Screen Size",
@@ -333,13 +362,15 @@ interface GridProps {
   toggleWatch: (productCode: string) => void;
   compareList: LaptopData[];
   toggleCompare: (laptop: LaptopData) => void;
+  onSortChanged?: (colId: string, sort: "asc" | "desc" | null) => void;
 }
 
 export type GridHandle = {
   resetGrid: () => void;
+  applySort: (colId: string, sort: 'asc' | 'desc' | null) => void;
 };
 
-const Grid = forwardRef<GridHandle, GridProps>(({ data, onRowSelected, watchlist, toggleWatch, compareList, toggleCompare }, ref) => {
+const Grid = forwardRef<GridHandle, GridProps>(({ data, onRowSelected, watchlist, toggleWatch, compareList, toggleCompare, onSortChanged }, ref) => {
   const grid = useRef<AgGridReact>(null);
 
   useImperativeHandle(ref, () => ({
@@ -353,6 +384,18 @@ const Grid = forwardRef<GridHandle, GridProps>(({ data, onRowSelected, watchlist
 
       gridApi.applyColumnState(resetColumnStateParams);
       gridApi.setFilterModel(null);
+    },
+    applySort(colId: string, sort: 'asc' | 'desc' | null) {
+      const gridApi = grid.current?.api;
+
+      if (!gridApi) {
+        return;
+      }
+
+      gridApi.applyColumnState({
+        state: [{ colId, sort }],
+        defaultState: { sort: null }
+      });
     },
   }));
 
@@ -371,7 +414,18 @@ const Grid = forwardRef<GridHandle, GridProps>(({ data, onRowSelected, watchlist
         suppressCellFocus={true}
         enableCellTextSelection={true}
         onFirstDataRendered={onFirstDataRendered}
-        onSortChanged={onSortOrFilterChange}
+        onSortChanged={(event) => {
+          onSortOrFilterChange(event);
+          if (onSortChanged) {
+            const columnState = event.api.getColumnState();
+            const sortedColumn = columnState.find((c) => c.sort != null);
+            if (sortedColumn) {
+              onSortChanged(sortedColumn.colId, sortedColumn.sort || null);
+            } else {
+              onSortChanged("", null);
+            }
+          }
+        }}
         onFilterChanged={onSortOrFilterChange}
         context={{
           watchlist,

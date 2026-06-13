@@ -49,7 +49,7 @@ const SPEC_SECTIONS = [
     key: "physical",
     icon: "📦",
     label: "Physical",
-    fields: ["weight", "color", "operating-system"],
+    fields: ["weight", "color", "operating-system", "first_seen"],
   },
 ];
 
@@ -72,6 +72,7 @@ const FIELD_LABELS: Record<string, string> = {
   "weight": "Weight",
   "color": "Color",
   "operating-system": "OS",
+  "first_seen": "First Tracked",
 };
 
 const ChartTooltip = ({ active, payload, label }: any) => {
@@ -342,6 +343,15 @@ export const LaptopDetailPage = ({
                             ? `${Number(e.value).toFixed(1)}"`
                             : e.key === "battery-capacity"
                             ? `${e.value} Wh`
+                            : e.key === "first_seen"
+                            ? (() => {
+                                try {
+                                  const d = new Date(String(e.value).replace(" ", "T"));
+                                  return d.toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' });
+                                } catch {
+                                  return String(e.value);
+                                }
+                              })()
                             : String(e.value)}
                         </span>
                       </div>
