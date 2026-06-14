@@ -1,6 +1,7 @@
 .lenovo-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-auto-rows: max-content;
   gap: 20px;
   padding: 16px;
   overflow-y: auto;
