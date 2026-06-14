@@ -85,6 +85,9 @@ def send_telegram_notification(
     if event_type == "added":
         title = f"Laptop Added: {display_name}"
         body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}"
+    elif event_type == "restock":
+        title = f"Laptop Restocked: {display_name}"
+        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}"
     elif event_type == "price_drop":
         title = f"Price Drop: {display_name}"
         body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%"
@@ -118,6 +121,16 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
     if event_type == "added":
         title = f"{count} Laptops Added"
         header = f"<b>{title}</b>\n\n{count} new laptops detected:\n"
+        item_lines = []
+        for p in batch:
+            code = _escape_html(p.get("productCode", "?"))
+            name = _escape_html(_truncate_name(p.get("productName", "Unknown"), 30))
+            price = p.get("finalPrice", "?")
+            item_lines.append(f"• {name} — {price} INR ({code})")
+        body = "\n".join(item_lines)
+    elif event_type == "restock":
+        title = f"{count} Laptops Restocked"
+        header = f"<b>{title}</b>\n\n{count} restocked laptops detected:\n"
         item_lines = []
         for p in batch:
             code = _escape_html(p.get("productCode", "?"))

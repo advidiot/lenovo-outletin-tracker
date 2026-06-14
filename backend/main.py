@@ -159,19 +159,12 @@ def run_scraper_loop(args):
 
                     # Dispatch Telegram + Push notifications
                     if not (is_first_run or args.silent):
-                        if new_listings:
-                            if len(new_listings) >= settings.NOTIFICATION_BATCH_THRESHOLD:
-                                send_telegram_batch(new_listings, "added")
-                            else:
-                                for p in new_listings:
-                                    send_telegram_notification(p, "added")
-                                    time.sleep(1)
                         if back_in_stock:
                             if len(back_in_stock) >= settings.NOTIFICATION_BATCH_THRESHOLD:
-                                send_telegram_batch(back_in_stock, "added")
+                                send_telegram_batch(back_in_stock, "restock")
                             else:
                                 for p in back_in_stock:
-                                    send_telegram_notification(p, "added")
+                                    send_telegram_notification(p, "restock")
                                     time.sleep(1)
                         
                         for p in new_listings:
@@ -310,19 +303,12 @@ def main() -> None:
 
             # Dispatch Telegram + Push notifications
             if not (is_first_run or args.silent):
-                if new_listings:
-                    if len(new_listings) >= settings.NOTIFICATION_BATCH_THRESHOLD:
-                        send_telegram_batch(new_listings, "added")
-                    else:
-                        for p in new_listings:
-                            send_telegram_notification(p, "added")
-                            time.sleep(1)
                 if back_in_stock:
                     if len(back_in_stock) >= settings.NOTIFICATION_BATCH_THRESHOLD:
-                        send_telegram_batch(back_in_stock, "added")
+                        send_telegram_batch(back_in_stock, "restock")
                     else:
                         for p in back_in_stock:
-                            send_telegram_notification(p, "added")
+                            send_telegram_notification(p, "restock")
                             time.sleep(1)
                 
                 for p in new_listings:

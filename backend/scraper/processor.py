@@ -6,6 +6,7 @@ from backend.logging_config import _log
 from backend.db.connection import get_db_connection
 from backend.notifier.ntfy import send_push_notification, _send_batch_summary
 from backend.notifier.discord_bot import dispatch_discord_alerts
+from backend.notifier.telegram import send_telegram_notification
 
 def current_time() -> str:
     """Return the current local time as a human-readable string."""
@@ -165,6 +166,7 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                         if current_price < db_price:
                             send_push_notification(p, ntfy_type="price_drop", old_price=db_price)
                             dispatch_discord_alerts([p], "price_drop", old_price=db_price)
+                            send_telegram_notification(p, "price_drop", old_price=db_price)
                             from backend.notifier.discord_bot import dispatch_watchlist_alerts
                             dispatch_watchlist_alerts(p, "price_drop", old_price=db_price)
                         else:
