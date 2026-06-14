@@ -86,20 +86,31 @@ def send_telegram_notification(
 
     display_name = _truncate_name(name)
 
+    # Resolve product URL
+    url_path = product.get("url") or f"/p/{code}"
+    if url_path.startswith("http"):
+        url = url_path
+    elif url_path:
+        if not url_path.startswith("/"):
+            url_path = f"/{url_path}"
+        url = f"{settings.LENOVO_BASE_URL}{url_path}"
+    else:
+        url = settings.LENOVO_LAPTOPS_URL
+
     if event_type == "added":
-        title = f"Laptop Added: {display_name}"
-        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}"
+        title = f"Laptop Added: <a href=\"{url}\">{display_name}</a>"
+        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "restock":
-        title = f"Laptop Restocked: {display_name}"
-        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}"
+        title = f"Laptop Restocked: <a href=\"{url}\">{display_name}</a>"
+        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "price_drop":
-        title = f"Price Drop: {display_name}"
-        body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%"
+        title = f"Price Drop: <a href=\"{url}\">{display_name}</a>"
+        body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "price_hike":
-        title = f"Price Hike: {display_name}"
-        body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%"
+        title = f"Price Hike: <a href=\"{url}\">{display_name}</a>"
+        body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "removed":
-        title = f"Laptop Removed: {display_name}"
+        title = f"Laptop Removed: <a href=\"{url}\">{display_name}</a>"
         lines = [f"Model: {code}"]
         if price != "N/A":
             lines.append(f"Last Price: {price} INR (-{saving}%)")
@@ -110,7 +121,7 @@ def send_telegram_notification(
         lines.append("This item has been removed or sold out.")
         body = "\n".join(lines)
     else:
-        title = f"Tracker Alert: {display_name}"
+        title = f"Tracker Alert: <a href=\"{url}\">{display_name}</a>"
         body = f"Model: {code}\nUnknown event type: {event_type}"
 
     text = f"<b>{title}</b>\n\n{body}"
@@ -130,7 +141,19 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
             code = _escape_html(p.get("productCode", "?"))
             name = _escape_html(_truncate_name(p.get("productName", "Unknown"), 30))
             price = p.get("finalPrice", "?")
-            item_lines.append(f"• {name} — {price} INR ({code})")
+            
+            # Resolve product URL
+            url_path = p.get("url") or f"/p/{code}"
+            if url_path.startswith("http"):
+                url = url_path
+            elif url_path:
+                if not url_path.startswith("/"):
+                    url_path = f"/{url_path}"
+                url = f"{settings.LENOVO_BASE_URL}{url_path}"
+            else:
+                url = settings.LENOVO_LAPTOPS_URL
+
+            item_lines.append(f"• <a href=\"{url}\">{name}</a> — {price} INR ({code})")
         body = "\n".join(item_lines)
     elif event_type == "restock":
         title = f"{count} Laptops Restocked"
@@ -140,7 +163,19 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
             code = _escape_html(p.get("productCode", "?"))
             name = _escape_html(_truncate_name(p.get("productName", "Unknown"), 30))
             price = p.get("finalPrice", "?")
-            item_lines.append(f"• {name} — {price} INR ({code})")
+            
+            # Resolve product URL
+            url_path = p.get("url") or f"/p/{code}"
+            if url_path.startswith("http"):
+                url = url_path
+            elif url_path:
+                if not url_path.startswith("/"):
+                    url_path = f"/{url_path}"
+                url = f"{settings.LENOVO_BASE_URL}{url_path}"
+            else:
+                url = settings.LENOVO_LAPTOPS_URL
+
+            item_lines.append(f"• <a href=\"{url}\">{name}</a> — {price} INR ({code})")
         body = "\n".join(item_lines)
     elif event_type == "removed":
         title = f"{count} Laptops Removed"
@@ -149,7 +184,19 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
         for p in batch:
             code = _escape_html(p.get("productCode", "?"))
             name = _escape_html(_truncate_name(p.get("productName", "Unknown"), 30))
-            item_lines.append(f"• {name} ({code})")
+            
+            # Resolve product URL
+            url_path = p.get("url") or f"/p/{code}"
+            if url_path.startswith("http"):
+                url = url_path
+            elif url_path:
+                if not url_path.startswith("/"):
+                    url_path = f"/{url_path}"
+                url = f"{settings.LENOVO_BASE_URL}{url_path}"
+            else:
+                url = settings.LENOVO_LAPTOPS_URL
+
+            item_lines.append(f"• <a href=\"{url}\">{name}</a> ({code})")
         body = "\n".join(item_lines)
     else:
         title = f"{count} Tracker Events"
