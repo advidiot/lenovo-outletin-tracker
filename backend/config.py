@@ -63,6 +63,7 @@ class Settings:
     # Telegram Configuration
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHANNEL_ID: Optional[str] = None
+    TELEGRAM_OWNER_ID: Optional[str] = None
     TELEGRAM_ENABLED: bool = False
 
     # Push Notification (VAPID) Configuration
@@ -136,6 +137,7 @@ class Settings:
 
         telegram_bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
         telegram_channel_id = os.environ.get("TELEGRAM_CHANNEL_ID")
+        telegram_owner_id = os.environ.get("TELEGRAM_OWNER_ID")
         telegram_enabled = bool(telegram_bot_token and telegram_channel_id)
 
         vapid_private_key = os.environ.get("VAPID_PRIVATE_KEY")
@@ -198,6 +200,7 @@ class Settings:
             COMPARE_HEADERS=compare_headers,
             TELEGRAM_BOT_TOKEN=telegram_bot_token,
             TELEGRAM_CHANNEL_ID=telegram_channel_id,
+            TELEGRAM_OWNER_ID=telegram_owner_id,
             TELEGRAM_ENABLED=telegram_enabled,
             VAPID_PRIVATE_KEY=vapid_private_key,
             VAPID_PUBLIC_KEY=vapid_public_key,

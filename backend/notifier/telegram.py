@@ -13,10 +13,14 @@ def _escape_html(text: str) -> str:
     """Escape HTML special characters for Telegram HTML parse mode."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-def _send_telegram_text(text: str) -> None:
-    if not settings.TELEGRAM_ENABLED:
+def _send_telegram_text(text: str, chat_id: Optional[str] = None) -> None:
+    if not settings.TELEGRAM_BOT_TOKEN:
         return
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+    
+    target_chat = chat_id or settings.TELEGRAM_CHANNEL_ID
+    if not target_chat:
+        return
     
     # Split text into chunks of <= 4000 characters without breaking lines if possible
     chunks = []
@@ -31,7 +35,7 @@ def _send_telegram_text(text: str) -> None:
         
     for chunk in chunks:
         payload = {
-            "chat_id": settings.TELEGRAM_CHANNEL_ID,
+            "chat_id": target_chat,
             "text": chunk,
             "parse_mode": "HTML",
             "disable_web_page_preview": True
@@ -45,17 +49,17 @@ def _send_telegram_text(text: str) -> None:
             _log(f"[Telegram] Error sending message: {e}")
 
 def send_telegram_startup_alert(db_count: int) -> None:
-    if not settings.TELEGRAM_ENABLED:
+    if not settings.TELEGRAM_OWNER_ID:
         return
     text = (
         f"<b>Logaze India Tracker Online</b>\n\n"
         f"Monitoring active.\n"
         f"Database loaded with {db_count} models."
     )
-    _send_telegram_text(text)
+    _send_telegram_text(text, chat_id=settings.TELEGRAM_OWNER_ID)
 
 def send_telegram_once_complete_alert(active_count: int, removed_count: int) -> None:
-    if not settings.TELEGRAM_ENABLED:
+    if not settings.TELEGRAM_OWNER_ID:
         return
     text = (
         f"<b>Logaze India: Scan Complete</b>\n\n"
@@ -63,7 +67,7 @@ def send_telegram_once_complete_alert(active_count: int, removed_count: int) -> 
         f"Active models: {active_count}\n"
         f"Removed models: {removed_count}"
     )
-    _send_telegram_text(text)
+    _send_telegram_text(text, chat_id=settings.TELEGRAM_OWNER_ID)
 
 def send_telegram_notification(
     product: dict,
