@@ -37,4 +37,7 @@ archival/
 # Runtime data (ignored)
 data/
 
+# Local test scripts (ignored)
+backend/scripts/test_telegram.py
+
 
