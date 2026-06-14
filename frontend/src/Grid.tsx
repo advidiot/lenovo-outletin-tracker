@@ -269,8 +269,20 @@ const columnDefs: ColDef[] = [
   },
   { headerName: "Resolution", field: "resolution", width: 100 },
   { headerName: "Aspect Ratio", field: "screen-aspect-ratio", width: 80 },
-  { headerName: "IPS Screen?", field: "screen-has-ips", width: 70 },
-  { headerName: "OLED Screen?", field: "screen-has-oled", width: 70 },
+  {
+    headerName: "Panel Type",
+    field: "panel-type",
+    width: 80,
+    valueGetter: (params) => {
+      const disp = params.data?.display;
+      if (!disp) return "";
+      const s = disp.toLowerCase();
+      if (s.includes("ips")) return "IPS";
+      if (s.includes("oled")) return "OLED";
+      if (s.includes("tn")) return "TN";
+      return "";
+    },
+  },
   { headerName: "Display", field: "display" },
   {
     headerName: "Memory Size",

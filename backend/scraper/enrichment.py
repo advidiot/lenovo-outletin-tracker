@@ -408,6 +408,7 @@ def get_laptops_data() -> List[Dict[str, Any]]:
                 "screen-size": parse_screen_size(disp),
                 "screen-has-ips": "ips" in disp.lower() if disp else False,
                 "screen-has-oled": "oled" in disp.lower() if disp else False,
+                "panel-type": "IPS" if disp and "ips" in disp.lower() else "OLED" if disp and "oled" in disp.lower() else "TN" if disp and "tn" in disp.lower() else None,
                 "touch-screen": "touch" in disp.lower() and "non-touch" not in disp.lower() if disp else False,
                 "resolution": res,
                 "screen-aspect-ratio": parse_aspect_ratio(res),
