@@ -38,6 +38,6 @@ archival/
 data/
 
 # Local test scripts (ignored)
-backend/scripts/test_telegram.py
+backend/scripts/local/
 
 
