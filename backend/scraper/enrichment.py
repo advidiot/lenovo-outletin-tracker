@@ -582,3 +582,68 @@ def enrich_specs(codes: Optional[List[str]] = None) -> Dict[str, Any]:
 
         _log(f"[Enrich] Done. Enriched: {enriched_count} | Failed: {failed_count}")
         return {"enriched": enriched_count, "failed": failed_count}
+
+def filter_out_ghosts(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Query the Lenovo compare API to check inventory status of new/inactive products and filter out ghosts."""
+    if not products:
+        return []
+
+    codes = [p["productCode"] for p in products if p.get("productCode")]
+    if not codes:
+        return products
+
+    # Query DB to check current active status of these products
+    db_status = {}
+    try:
+        with db_connection() as conn:
+            cursor = conn.cursor()
+            placeholders = ",".join("?" * len(codes))
+            cursor.execute(f"SELECT product_code, active FROM products WHERE product_code IN ({placeholders})", codes)
+            rows = cursor.fetchall()
+            db_status = {row["product_code"]: row["active"] for row in rows}
+    except Exception as e:
+        _log(f"[Ghost Filter] Database status query failed: {e}. Defaulting to check all.")
+
+    # Identify codes to verify: brand new to DB or currently marked inactive (active = 0)
+    codes_to_check = []
+    for p in products:
+        code = p.get("productCode")
+        if not code:
+            continue
+        if code not in db_status or db_status[code] == 0:
+            codes_to_check.append(code)
+
+    if not codes_to_check:
+        # No new or inactive products to verify
+        return products
+
+    _log(f"[Ghost Filter] Verifying stock status for {len(codes_to_check)} new/inactive products: {codes_to_check}")
+
+    unavailable_codes = set()
+    batch_size = 20
+
+    for i in range(0, len(codes_to_check), batch_size):
+        batch = codes_to_check[i:i + batch_size]
+        compare_req = [{"categoryCode": "laptops", "productNumber": batch}]
+        url = "https://openapi.lenovo.com/in/outletin/en/product/compare/getCompareData?compareReq=" + urllib.parse.quote(json.dumps(compare_req))
+        try:
+            response = _request("GET", url, headers=settings.COMPARE_HEADERS, timeout=15)
+            if response.status_code == 200:
+                data = response.json()
+                categories = data.get("data", [])
+                items = categories[0].get("productList", []) if categories else []
+                for item in items:
+                    prod_code = item.get("productNumber")
+                    inv_status = item.get("inventoryStatus") # 1 = available, 2 = unavailable
+                    if prod_code and inv_status == 2:
+                        unavailable_codes.add(prod_code)
+                        _log(f"[Ghost Filter] Verified product {prod_code} is sold out (ghost). Excluded.")
+            else:
+                _log(f"[Ghost Filter] Compare API error {response.status_code} for batch. Skipping filter for this batch.")
+        except Exception as e:
+            _log(f"[Ghost Filter] Error checking batch: {e}. Skipping filter for this batch.")
+
+    # Return only products that are NOT verified unavailable
+    filtered = [p for p in products if p.get("productCode") not in unavailable_codes]
+    return filtered
+
