@@ -583,6 +583,11 @@ def enrich_specs(codes: Optional[List[str]] = None) -> Dict[str, Any]:
         _log(f"[Enrich] Done. Enriched: {enriched_count} | Failed: {failed_count}")
         return {"enriched": enriched_count, "failed": failed_count}
 
+# In-memory cache for verified ghosts to avoid redundant comparison API queries
+# Maps productCode -> epoch_timestamp of last verified ghost status
+GHOST_CACHE: Dict[str, float] = {}
+GHOST_CACHE_TTL = 3600 # 1 hour
+
 def filter_out_ghosts(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Query the Lenovo compare API to check inventory status of new/inactive products and filter out ghosts."""
     if not products:
@@ -605,23 +610,34 @@ def filter_out_ghosts(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         _log(f"[Ghost Filter] Database status query failed: {e}. Defaulting to check all.")
 
     # Identify codes to verify: brand new to DB or currently marked inactive (active = 0)
+    # Skip checking if we already verified it as a ghost within the cache TTL
+    now_ts = time.time()
     codes_to_check = []
+    cached_ghosts = []
+
     for p in products:
         code = p.get("productCode")
         if not code:
             continue
         if code not in db_status or db_status[code] == 0:
-            codes_to_check.append(code)
+            # Check if it is cached as a ghost
+            if code in GHOST_CACHE and (now_ts - GHOST_CACHE[code]) < GHOST_CACHE_TTL:
+                cached_ghosts.append(code)
+            else:
+                codes_to_check.append(code)
+
+    # If some products were cached as ghosts, we will filter them out
+    unavailable_codes = set(cached_ghosts)
 
     if not codes_to_check:
-        # No new or inactive products to verify
-        return products
+        # No new or inactive products to verify beyond what is cached
+        if cached_ghosts:
+            _log(f"[Ghost Filter] Excluded {len(cached_ghosts)} products cached as ghosts: {cached_ghosts}")
+        return [p for p in products if p.get("productCode") not in unavailable_codes]
 
-    _log(f"[Ghost Filter] Verifying stock status for {len(codes_to_check)} new/inactive products: {codes_to_check}")
+    _log(f"[Ghost Filter] Verifying stock status for {len(codes_to_check)} new/inactive products (skipped {len(cached_ghosts)} cached): {codes_to_check}")
 
-    unavailable_codes = set()
     batch_size = 20
-
     for i in range(0, len(codes_to_check), batch_size):
         batch = codes_to_check[i:i + batch_size]
         compare_req = [{"categoryCode": "laptops", "productNumber": batch}]
@@ -632,12 +648,26 @@ def filter_out_ghosts(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 data = response.json()
                 categories = data.get("data", [])
                 items = categories[0].get("productList", []) if categories else []
+                
+                # Keep track of what we checked in this batch
+                checked_codes = set(batch)
+                returned_codes = set()
+
                 for item in items:
                     prod_code = item.get("productNumber")
+                    if not prod_code:
+                        continue
+                    returned_codes.add(prod_code)
                     inv_status = item.get("inventoryStatus") # 1 = available, 2 = unavailable
-                    if prod_code and inv_status == 2:
+                    if inv_status == 2:
                         unavailable_codes.add(prod_code)
-                        _log(f"[Ghost Filter] Verified product {prod_code} is sold out (ghost). Excluded.")
+                        GHOST_CACHE[prod_code] = now_ts
+                        _log(f"[Ghost Filter] Verified product {prod_code} is sold out (ghost). Excluded & cached.")
+                    elif inv_status == 1:
+                        # Verified available, remove from ghost cache if it was there
+                        GHOST_CACHE.pop(prod_code, None)
+
+                # If the compare API did not return some products, we do not mark them as ghosts
             else:
                 _log(f"[Ghost Filter] Compare API error {response.status_code} for batch. Skipping filter for this batch.")
         except Exception as e:
