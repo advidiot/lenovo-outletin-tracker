@@ -72,6 +72,37 @@
   border-color: var(--accent-teal);
 }
 
+.toolbar-view-toggle {
+  display: flex;
+  align-items: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+
+.toolbar-view-toggle .btn {
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.toolbar-view-toggle .btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.toolbar-view-toggle .btn-ghost:hover {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .toolbar-view-toggle .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* Main content */
 .dashboard-content {
   display: flex;
@@ -106,4 +137,6 @@
   .desktop-grid-wrap { display: none; }
   .mobile-list-wrap  { display: flex; }
   .mobile-only-btn   { display: inline-flex; }
+  .toolbar-view-toggle { display: none; } /* Hide toggle on mobile as mobile only supports card view anyway */
 }
+

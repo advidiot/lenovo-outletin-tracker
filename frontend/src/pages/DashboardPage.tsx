@@ -5,6 +5,7 @@ import { DashboardStats } from "../components/DashboardStats";
 import { FilterSidebar, FilterState, DEFAULT_FILTERS } from "../components/FilterSidebar";
 import { FloatingCompareBar } from "../components/FloatingCompareBar";
 import { MobileCardList } from "../components/MobileCardList";
+import { LenovoCardGrid } from "../components/LenovoCardGrid";
 import { useToast } from "../components/ToastProvider";
 import { retrieveSettings } from "../gridSettings";
 import Grid, { GridHandle } from "../Grid";
@@ -305,6 +306,101 @@ function sortLaptops(data: LaptopData[], sortBy: string): LaptopData[] {
   return sorted;
 }
 
+function parseFiltersFromSearchParams(params: URLSearchParams): FilterState {
+  const parseArray = (key: string): string[] => {
+    const val = params.get(key);
+    return val ? val.split(",").filter(Boolean) : [];
+  };
+
+  const parseNumber = (key: string, defaultValue: number): number => {
+    const val = params.get(key);
+    return val ? parseInt(val, 10) : defaultValue;
+  };
+
+  const parseBoolean = (key: string): boolean => {
+    return params.get(key) === "1";
+  };
+
+  return {
+    priceMin: parseNumber("priceMin", DEFAULT_FILTERS.priceMin),
+    priceMax: parseNumber("priceMax", DEFAULT_FILTERS.priceMax),
+    screenSizes: parseArray("screenSizes"),
+    ramSizes: parseArray("ramSizes"),
+    processorBrands: parseArray("processorBrands"),
+    conditions: parseArray("conditions"),
+    gpuTypes: parseArray("gpuTypes"),
+    storageTypes: parseArray("storageTypes"),
+    ddrGens: parseArray("ddrGens"),
+    touchscreenOnly: parseBoolean("touchscreenOnly"),
+    showUnavailable: parseBoolean("showUnavailable"),
+    storageSizes: parseArray("storageSizes"),
+    operatingSystems: parseArray("operatingSystems"),
+    weights: parseArray("weights"),
+    brands: parseArray("brands"),
+    series: parseArray("series"),
+    features: parseArray("features"),
+    colors: parseArray("colors"),
+    byTypes: parseArray("byTypes"),
+    byUses: parseArray("byUses"),
+    gpuModels: parseArray("gpuModels"),
+  };
+}
+
+function serializeFiltersToSearchParams(
+  filters: FilterState,
+  currentParams: URLSearchParams
+): URLSearchParams {
+  const newParams = new URLSearchParams(currentParams);
+
+  const setArray = (key: string, arr: string[]) => {
+    if (arr && arr.length > 0) {
+      newParams.set(key, arr.join(","));
+    } else {
+      newParams.delete(key);
+    }
+  };
+
+  const setNumber = (key: string, val: number, defaultVal: number) => {
+    if (val !== undefined && val !== defaultVal) {
+      newParams.set(key, String(val));
+    } else {
+      newParams.delete(key);
+    }
+  };
+
+  const setBoolean = (key: string, val: boolean) => {
+    if (val) {
+      newParams.set(key, "1");
+    } else {
+      newParams.delete(key);
+    }
+  };
+
+  setNumber("priceMin", filters.priceMin, DEFAULT_FILTERS.priceMin);
+  setNumber("priceMax", filters.priceMax, DEFAULT_FILTERS.priceMax);
+  setArray("screenSizes", filters.screenSizes);
+  setArray("ramSizes", filters.ramSizes);
+  setArray("processorBrands", filters.processorBrands);
+  setArray("conditions", filters.conditions);
+  setArray("gpuTypes", filters.gpuTypes);
+  setArray("storageTypes", filters.storageTypes);
+  setArray("ddrGens", filters.ddrGens);
+  setBoolean("touchscreenOnly", filters.touchscreenOnly);
+  setBoolean("showUnavailable", filters.showUnavailable);
+  setArray("storageSizes", filters.storageSizes);
+  setArray("operatingSystems", filters.operatingSystems);
+  setArray("weights", filters.weights);
+  setArray("brands", filters.brands);
+  setArray("series", filters.series);
+  setArray("features", filters.features);
+  setArray("colors", filters.colors);
+  setArray("byTypes", filters.byTypes);
+  setArray("byUses", filters.byUses);
+  setArray("gpuModels", filters.gpuModels);
+
+  return newParams;
+}
+
 export const DashboardPage = ({
   laptopData,
   lastModified,
@@ -316,15 +412,26 @@ export const DashboardPage = ({
   facetGroups,
 }: DashboardPageProps) => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
 
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<FilterState>(() =>
+    parseFiltersFromSearchParams(searchParams)
+  );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(
     searchParams.get("watchlist") === "1"
   );
+  const [viewMode, setViewMode] = useState<"normal" | "table">(() => {
+    try {
+      const saved = localStorage.getItem("trackfurb_view_mode");
+      return (saved === "normal" || saved === "table") ? saved : "normal";
+    } catch {
+      return "normal";
+    }
+  });
+
   const [sortBy, setSortBy] = useState<string>(() => {
     try {
       const settings = retrieveSettings();
@@ -345,8 +452,16 @@ export const DashboardPage = ({
   });
 
   useEffect(() => {
+    setFilters(parseFiltersFromSearchParams(searchParams));
+  }, [searchParams]);
+
+  useEffect(() => {
     setShowWatchlistOnly(searchParams.get("watchlist") === "1");
   }, [searchParams]);
+
+  useEffect(() => {
+    localStorage.setItem("trackfurb_view_mode", viewMode);
+  }, [viewMode]);
 
   const gridRef = useRef<GridHandle>(null);
 
@@ -378,11 +493,18 @@ export const DashboardPage = ({
     [navigate]
   );
 
+  const handleFiltersChange = useCallback(
+    (newFilters: FilterState) => {
+      setSearchParams((prev) => serializeFiltersToSearchParams(newFilters, prev));
+    },
+    [setSearchParams]
+  );
+
   const handleResetFilters = useCallback(() => {
-    setFilters(DEFAULT_FILTERS);
+    setSearchParams((prev) => serializeFiltersToSearchParams(DEFAULT_FILTERS, prev));
     setSortBy("price-asc");
     gridRef.current?.resetGrid();
-  }, []);
+  }, [setSearchParams]);
 
   const handleSortChange = useCallback((newSortBy: string) => {
     setSortBy(newSortBy);
@@ -510,6 +632,23 @@ export const DashboardPage = ({
             </select>
           </div>
 
+          <div className="toolbar-view-toggle">
+            <button
+              className={`btn btn-sm ${viewMode === "normal" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setViewMode("normal")}
+              title="Lenovo Grid Layout"
+            >
+              Grid View
+            </button>
+            <button
+              className={`btn btn-sm ${viewMode === "table" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setViewMode("table")}
+              title="Spreadsheet Table Layout"
+            >
+              Table View
+            </button>
+          </div>
+
           <button
             className={`btn btn-sm ${
               showWatchlistOnly ? "btn-primary" : "btn-ghost"
@@ -542,7 +681,7 @@ export const DashboardPage = ({
       <div className="dashboard-content">
         <FilterSidebar
           filters={filters}
-          onFiltersChange={setFilters}
+          onFiltersChange={handleFiltersChange}
           onReset={handleResetFilters}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
@@ -553,18 +692,28 @@ export const DashboardPage = ({
         />
 
         <div className="dashboard-grid-area">
-          {/* Desktop: AG Grid */}
+          {/* Desktop view */}
           <div className="desktop-grid-wrap">
-            <Grid
-              ref={gridRef}
-              data={filteredData}
-              watchlist={watchlist}
-              toggleWatch={handleToggleWatch}
-              compareList={compareList}
-              toggleCompare={handleToggleCompare}
-              onRowSelected={handleRowSelected}
-              onSortChanged={handleGridSortChanged}
-            />
+            {viewMode === "normal" ? (
+              <LenovoCardGrid
+                data={filteredData}
+                watchlist={watchlist}
+                toggleWatch={handleToggleWatch}
+                compareList={compareList}
+                toggleCompare={handleToggleCompare}
+              />
+            ) : (
+              <Grid
+                ref={gridRef}
+                data={filteredData}
+                watchlist={watchlist}
+                toggleWatch={handleToggleWatch}
+                compareList={compareList}
+                toggleCompare={handleToggleCompare}
+                onRowSelected={handleRowSelected}
+                onSortChanged={handleGridSortChanged}
+              />
+            )}
           </div>
 
           {/* Mobile: Card list */}

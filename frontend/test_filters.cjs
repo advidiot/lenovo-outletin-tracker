@@ -330,4 +330,152 @@ assert.strictEqual(osFiltered.length, 1);
 assert.strictEqual(osFiltered[0].product_code, "2222");
 console.log("✓ Test 6 Passed: Storage size and Operating System filters match correctly.");
 
+// ----------------------------------------------------
+// URL Serialization / Deserialization Logic
+// ----------------------------------------------------
+const DEFAULT_FILTERS = {
+  priceMin: 0,
+  priceMax: 300000,
+  screenSizes: [],
+  ramSizes: [],
+  processorBrands: [],
+  conditions: [],
+  gpuTypes: [],
+  storageTypes: [],
+  ddrGens: [],
+  storageSizes: [],
+  operatingSystems: [],
+  weights: [],
+  brands: [],
+  series: [],
+  features: [],
+  colors: [],
+  byTypes: [],
+  byUses: [],
+  gpuModels: [],
+  touchscreenOnly: false,
+  showUnavailable: false,
+};
+
+function parseFiltersFromSearchParams(params) {
+  const parseArray = (key) => {
+    const val = params.get(key);
+    return val ? val.split(",").filter(Boolean) : [];
+  };
+
+  const parseNumber = (key, defaultValue) => {
+    const val = params.get(key);
+    return val ? parseInt(val, 10) : defaultValue;
+  };
+
+  const parseBoolean = (key) => {
+    return params.get(key) === "1";
+  };
+
+  return {
+    priceMin: parseNumber("priceMin", DEFAULT_FILTERS.priceMin),
+    priceMax: parseNumber("priceMax", DEFAULT_FILTERS.priceMax),
+    screenSizes: parseArray("screenSizes"),
+    ramSizes: parseArray("ramSizes"),
+    processorBrands: parseArray("processorBrands"),
+    conditions: parseArray("conditions"),
+    gpuTypes: parseArray("gpuTypes"),
+    storageTypes: parseArray("storageTypes"),
+    ddrGens: parseArray("ddrGens"),
+    touchscreenOnly: parseBoolean("touchscreenOnly"),
+    showUnavailable: parseBoolean("showUnavailable"),
+    storageSizes: parseArray("storageSizes"),
+    operatingSystems: parseArray("operatingSystems"),
+    weights: parseArray("weights"),
+    brands: parseArray("brands"),
+    series: parseArray("series"),
+    features: parseArray("features"),
+    colors: parseArray("colors"),
+    byTypes: parseArray("byTypes"),
+    byUses: parseArray("byUses"),
+    gpuModels: parseArray("gpuModels"),
+  };
+}
+
+function serializeFiltersToSearchParams(filters, currentParams) {
+  const newParams = new URLSearchParams(currentParams);
+
+  const setArray = (key, arr) => {
+    if (arr && arr.length > 0) {
+      newParams.set(key, arr.join(","));
+    } else {
+      newParams.delete(key);
+    }
+  };
+
+  const setNumber = (key, val, defaultVal) => {
+    if (val !== undefined && val !== defaultVal) {
+      newParams.set(key, String(val));
+    } else {
+      newParams.delete(key);
+    }
+  };
+
+  const setBoolean = (key, val) => {
+    if (val) {
+      newParams.set(key, "1");
+    } else {
+      newParams.delete(key);
+    }
+  };
+
+  setNumber("priceMin", filters.priceMin, DEFAULT_FILTERS.priceMin);
+  setNumber("priceMax", filters.priceMax, DEFAULT_FILTERS.priceMax);
+  setArray("screenSizes", filters.screenSizes);
+  setArray("ramSizes", filters.ramSizes);
+  setArray("processorBrands", filters.processorBrands);
+  setArray("conditions", filters.conditions);
+  setArray("gpuTypes", filters.gpuTypes);
+  setArray("storageTypes", filters.storageTypes);
+  setArray("ddrGens", filters.ddrGens);
+  setBoolean("touchscreenOnly", filters.touchscreenOnly);
+  setBoolean("showUnavailable", filters.showUnavailable);
+  setArray("storageSizes", filters.storageSizes);
+  setArray("operatingSystems", filters.operatingSystems);
+  setArray("weights", filters.weights);
+  setArray("brands", filters.brands);
+  setArray("series", filters.series);
+  setArray("features", filters.features);
+  setArray("colors", filters.colors);
+  setArray("byTypes", filters.byTypes);
+  setArray("byUses", filters.byUses);
+  setArray("gpuModels", filters.gpuModels);
+
+  return newParams;
+}
+
+// Test 7: URL Serialization & Deserialization
+const testFilters = {
+  ...DEFAULT_FILTERS,
+  priceMin: 10000,
+  brands: ["Yoga", "LOQ"],
+  touchscreenOnly: true,
+};
+
+const initialParams = new URLSearchParams("watchlist=1&other=test");
+const serialized = serializeFiltersToSearchParams(testFilters, initialParams);
+
+// Verify other query parameters are preserved
+assert.strictEqual(serialized.get("watchlist"), "1");
+assert.strictEqual(serialized.get("other"), "test");
+
+// Verify serialized values
+assert.strictEqual(serialized.get("priceMin"), "10000");
+assert.strictEqual(serialized.get("priceMax"), null); // default value, should be omitted
+assert.strictEqual(serialized.get("brands"), "Yoga,LOQ");
+assert.strictEqual(serialized.get("touchscreenOnly"), "1");
+assert.strictEqual(serialized.get("showUnavailable"), null);
+
+// Roundtrip validation
+const parsed = parseFiltersFromSearchParams(serialized);
+assert.deepStrictEqual(parsed, testFilters);
+
+console.log("✓ Test 7 Passed: URL parameter serialization and roundtrip validation succeeded.");
+
 console.log("\nALL FILTER TESTS COMPLETED SUCCESSFULLY!");
+
