@@ -513,7 +513,11 @@ def clean_ghost_listings() -> List[str]:
         return cleaned_codes
 
 def enrich_specs(codes: Optional[List[str]] = None) -> Dict[str, Any]:
-    """Fetch full specs from the Lenovo Compare API for active products and cache them in DB."""
+    """Fetch full specs from the Lenovo Compare API for active products and cache them in DB.
+    
+    Used by the manual /api/enrich_specs endpoint as a backfill tool.
+    Sends all codes in a single Compare API request (API supports 166+ codes per request).
+    """
     with db_connection() as conn:
         cursor = conn.cursor()
 
@@ -526,33 +530,35 @@ def enrich_specs(codes: Optional[List[str]] = None) -> Dict[str, Any]:
         all_codes = [row[0] for row in cursor.fetchall()]
 
         if not all_codes:
+            _log("[Enrich] No products need enrichment.")
             return {"enriched": 0, "failed": 0}
 
         enriched_count = 0
         failed_count = 0
 
-        for i in range(0, len(all_codes), settings.COMPARE_BATCH_SIZE):
-            batch = all_codes[i:i + settings.COMPARE_BATCH_SIZE]
-            compare_req = [{"categoryCode": "laptops", "productNumber": batch}]
-            url = ("https://openapi.lenovo.com/in/outletin/en/product/compare/getCompareData?compareReq="
-                   + urllib.parse.quote(json.dumps(compare_req)))
+        # Send all codes in a single request — API supports 166+ codes per request
+        compare_req = [{"categoryCode": "laptops", "productNumber": all_codes}]
+        url = ("https://openapi.lenovo.com/in/outletin/en/product/compare/getCompareData?compareReq="
+               + urllib.parse.quote(json.dumps(compare_req)))
 
-            try:
-                response = _request("GET", url, headers=settings.COMPARE_HEADERS, timeout=20)
+        try:
+            _log(f"[Enrich] Fetching full_specs for {len(all_codes)} products in one request...")
+            response = _request("GET", url, headers=settings.COMPARE_HEADERS, timeout=30)
 
-                if response.status_code != 200:
-                    _log(f"[Enrich] Batch {i//settings.COMPARE_BATCH_SIZE+1}: HTTP {response.status_code}")
-                    failed_count += len(batch)
-                    continue
-
+            if response.status_code != 200:
+                _log(f"[Enrich] HTTP {response.status_code}")
+                failed_count = len(all_codes)
+            else:
                 data = response.json()
                 categories = data.get("data", [])
                 items = categories[0].get("productList", []) if categories else []
 
+                returned_codes = set()
                 for item in items:
                     prod_code = item.get("productNumber")
                     if not prod_code:
                         continue
+                    returned_codes.add(prod_code)
 
                     classification = item.get("classification", [])
                     full_specs_dict = {
@@ -574,22 +580,28 @@ def enrich_specs(codes: Optional[List[str]] = None) -> Dict[str, Any]:
                         enriched_count += 1
                         _log(f"[Enrich] Updated full_specs for {prod_code} ({len(full_specs_dict)} fields)")
 
-                time.sleep(0.5)
+                # Count codes not returned by API as failed
+                failed_count = len(set(all_codes) - returned_codes)
+                if failed_count:
+                    _log(f"[Enrich] {failed_count} codes not returned by Compare API.")
 
-            except Exception as e:
-                _log(f"[Enrich] Batch {i//settings.COMPARE_BATCH_SIZE+1} error: {e}")
-                failed_count += len(batch)
+        except Exception as e:
+            _log(f"[Enrich] Request error: {e}")
+            failed_count = len(all_codes)
 
         _log(f"[Enrich] Done. Enriched: {enriched_count} | Failed: {failed_count}")
         return {"enriched": enriched_count, "failed": failed_count}
 
-# In-memory cache for verified ghosts to avoid redundant comparison API queries
-# Maps productCode -> epoch_timestamp of last verified ghost status
-GHOST_CACHE: Dict[str, float] = {}
-GHOST_CACHE_TTL = 3600 # 1 hour
-
-def filter_out_ghosts(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Query the Lenovo compare API to check inventory status of new/inactive products and filter out ghosts."""
+def verify_and_enrich(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Single Compare API call per cycle that both filters ghosts and enriches full_specs.
+    
+    Replaces the old filter_out_ghosts() + post-cycle enrich_specs() pattern.
+    Sends ALL product codes from the Search API in ONE Compare API request, then:
+      1. Filters out ghost products (inventoryStatus == 2)
+      2. Writes full_specs for any product that doesn't have them yet
+    
+    Result: 4 Lenovo API requests per cycle (3 search + 1 compare) with instant ghost detection.
+    """
     if not products:
         return []
 
@@ -597,83 +609,89 @@ def filter_out_ghosts(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not codes:
         return products
 
-    # Query DB to check current active status of these products
-    db_status = {}
+    # Determine which products are missing full_specs in DB so we can backfill
+    missing_specs_codes: set = set()
     try:
         with db_connection() as conn:
             cursor = conn.cursor()
             placeholders = ",".join("?" * len(codes))
-            cursor.execute(f"SELECT product_code, active FROM products WHERE product_code IN ({placeholders})", codes)
-            rows = cursor.fetchall()
-            db_status = {row["product_code"]: row["active"] for row in rows}
+            cursor.execute(
+                f"SELECT product_code FROM products WHERE product_code IN ({placeholders}) AND (full_specs IS NULL OR full_specs = '')",
+                codes
+            )
+            missing_specs_codes = {row[0] for row in cursor.fetchall()}
     except Exception as e:
-        _log(f"[Ghost Filter] Database status query failed: {e}. Defaulting to check all.")
+        _log(f"[Verify+Enrich] DB query for missing specs failed: {e}")
 
-    # Identify codes to verify: brand new to DB or currently marked inactive (active = 0)
-    # Skip checking if we already verified it as a ghost within the cache TTL
-    now_ts = time.time()
-    codes_to_check = []
-    cached_ghosts = []
+    # Single Compare API request for ALL codes
+    compare_req = [{"categoryCode": "laptops", "productNumber": codes}]
+    url = ("https://openapi.lenovo.com/in/outletin/en/product/compare/getCompareData?compareReq="
+           + urllib.parse.quote(json.dumps(compare_req)))
 
-    for p in products:
-        code = p.get("productCode")
-        if not code:
-            continue
-        if code not in db_status or db_status[code] == 0:
-            # Check if it is cached as a ghost
-            if code in GHOST_CACHE and (now_ts - GHOST_CACHE[code]) < GHOST_CACHE_TTL:
-                cached_ghosts.append(code)
-            else:
-                codes_to_check.append(code)
+    unavailable_codes: set = set()
+    enriched_count = 0
 
-    # If some products were cached as ghosts, we will filter them out
-    unavailable_codes = set(cached_ghosts)
+    try:
+        _log(f"[Verify+Enrich] Checking {len(codes)} products (ghost filter + spec enrichment)...")
+        response = _request("GET", url, headers=settings.COMPARE_HEADERS, timeout=30)
 
-    if not codes_to_check:
-        # No new or inactive products to verify beyond what is cached
-        if cached_ghosts:
-            _log(f"[Ghost Filter] Excluded {len(cached_ghosts)} products cached as ghosts: {cached_ghosts}")
-        return [p for p in products if p.get("productCode") not in unavailable_codes]
+        if response.status_code != 200:
+            _log(f"[Verify+Enrich] Compare API error HTTP {response.status_code}. Skipping ghost filter and enrichment this cycle.")
+            return products
 
-    _log(f"[Ghost Filter] Verifying stock status for {len(codes_to_check)} new/inactive products (skipped {len(cached_ghosts)} cached): {codes_to_check}")
+        data = response.json()
+        categories = data.get("data", [])
+        items = categories[0].get("productList", []) if categories else []
 
-    batch_size = 20
-    for i in range(0, len(codes_to_check), batch_size):
-        batch = codes_to_check[i:i + batch_size]
-        compare_req = [{"categoryCode": "laptops", "productNumber": batch}]
-        url = "https://openapi.lenovo.com/in/outletin/en/product/compare/getCompareData?compareReq=" + urllib.parse.quote(json.dumps(compare_req))
-        try:
-            response = _request("GET", url, headers=settings.COMPARE_HEADERS, timeout=15)
-            if response.status_code == 200:
-                data = response.json()
-                categories = data.get("data", [])
-                items = categories[0].get("productList", []) if categories else []
-                
-                # Keep track of what we checked in this batch
-                checked_codes = set(batch)
-                returned_codes = set()
+        specs_to_write: List[tuple] = []
 
-                for item in items:
-                    prod_code = item.get("productNumber")
-                    if not prod_code:
-                        continue
-                    returned_codes.add(prod_code)
-                    inv_status = item.get("inventoryStatus") # 1 = available, 2 = unavailable
-                    if inv_status == 2:
-                        unavailable_codes.add(prod_code)
-                        GHOST_CACHE[prod_code] = now_ts
-                        _log(f"[Ghost Filter] Verified product {prod_code} is sold out (ghost). Excluded & cached.")
-                    elif inv_status == 1:
-                        # Verified available, remove from ghost cache if it was there
-                        GHOST_CACHE.pop(prod_code, None)
+        for item in items:
+            prod_code = item.get("productNumber")
+            if not prod_code:
+                continue
 
-                # If the compare API did not return some products, we do not mark them as ghosts
-            else:
-                _log(f"[Ghost Filter] Compare API error {response.status_code} for batch. Skipping filter for this batch.")
-        except Exception as e:
-            _log(f"[Ghost Filter] Error checking batch: {e}. Skipping filter for this batch.")
+            # Ghost filtering
+            inv_status = item.get("inventoryStatus")  # 1 = available, 2 = unavailable
+            if inv_status == 2:
+                unavailable_codes.add(prod_code)
+                _log(f"[Verify+Enrich] Ghost detected: {prod_code} (inventoryStatus=2). Excluded.")
 
-    # Return only products that are NOT verified unavailable
-    filtered = [p for p in products if p.get("productCode") not in unavailable_codes]
-    return filtered
+            # Spec enrichment — only for products missing full_specs
+            # (also picks up brand-new products just inserted in this cycle)
+            if prod_code in missing_specs_codes or prod_code not in missing_specs_codes and inv_status is not None:
+                classification = item.get("classification", [])
+                if classification or inv_status is not None:
+                    full_specs_dict = {
+                        s["a"]: s["b"]
+                        for s in classification
+                        if "a" in s and "b" in s
+                    }
+                    if inv_status is not None:
+                        full_specs_dict["__inventoryStatus"] = inv_status
+
+                    if prod_code in missing_specs_codes and full_specs_dict:
+                        specs_to_write.append((json.dumps(full_specs_dict, ensure_ascii=False), prod_code))
+
+        # Write enriched specs to DB
+        if specs_to_write:
+            try:
+                with db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.executemany(
+                        "UPDATE products SET full_specs = ? WHERE product_code = ?",
+                        specs_to_write
+                    )
+                    enriched_count = cursor.rowcount
+            except Exception as e:
+                _log(f"[Verify+Enrich] DB write for full_specs failed: {e}")
+
+        ghost_count = len(unavailable_codes)
+        _log(f"[Verify+Enrich] Done. Ghosts filtered: {ghost_count} | Specs enriched: {enriched_count}/{len(missing_specs_codes)}")
+
+    except Exception as e:
+        _log(f"[Verify+Enrich] Request error: {e}. Skipping ghost filter and enrichment this cycle.")
+        return products
+
+    # Return products with ghosts removed
+    return [p for p in products if p.get("productCode") not in unavailable_codes]
 

@@ -15,7 +15,7 @@ from backend.db.connection import get_db_connection
 from backend.db.migrations import run_migrations
 from backend.scraper.api import get_all_active_products
 from backend.scraper.processor import process_scanned_products
-from backend.scraper.enrichment import enrich_specs, clean_ghost_listings, filter_out_ghosts
+from backend.scraper.enrichment import enrich_specs, clean_ghost_listings, verify_and_enrich
 from backend.notifier.ntfy import send_startup_alert, send_once_complete_alert
 from backend.server.handler import LaptopTrackerHandler
 from backend.notifier.telegram import (
@@ -45,7 +45,7 @@ def trigger_manual_scrape(is_first_run: bool = False) -> dict:
         if products is None:
             return {"success": False, "error": "Failed to retrieve products from Lenovo API."}
         
-        products = filter_out_ghosts(products)
+        products = verify_and_enrich(products)
         process_scanned_products(products, is_first_run=is_first_run, partial_scan=partial_scan)
         
         # Count stats
@@ -151,13 +151,12 @@ def run_scraper_loop(args):
             with scraper_lock:
                 products, partial_scan = get_all_active_products()
                 if products is not None:
-                    products = filter_out_ghosts(products)
+                    products = verify_and_enrich(products)
                     new_listings, back_in_stock = process_scanned_products(
                         products, 
                         is_first_run=is_first_run or args.silent, 
                         partial_scan=partial_scan
                     )
-                    enrich_specs()
 
                     # Dispatch Telegram + Push notifications
                     if not (is_first_run or args.silent):
@@ -296,13 +295,12 @@ def main() -> None:
                 _log("Failed to retrieve products. Exiting with error.")
                 sys.exit(1)
 
-            products = filter_out_ghosts(products)
+            products = verify_and_enrich(products)
             new_listings, back_in_stock = process_scanned_products(
                 products, 
                 is_first_run=is_first_run or args.silent, 
                 partial_scan=partial_scan
             )
-            enrich_specs()
 
             # Dispatch Telegram + Push notifications
             if not (is_first_run or args.silent):

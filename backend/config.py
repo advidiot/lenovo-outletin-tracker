@@ -54,7 +54,6 @@ class Settings:
     MAX_PAGE_RETRIES: int = 2
     RETRY_DELAYS: List[float] = None
     INTER_PAGE_DELAY: float = 1.5
-    COMPARE_BATCH_SIZE: int = 10
 
     # Headers
     HEADERS: Dict[str, str] = None
