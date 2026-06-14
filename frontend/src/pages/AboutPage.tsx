@@ -5,7 +5,7 @@ export const AboutPage = () => (
   <div className="static-page">
     <div className="static-page-inner">
       <div className="static-back">
-        <Link to="/" className="back-link">← Back to TrackFurb</Link>
+        <Link to="/browse" className="back-link">← Back to TrackFurb</Link>
       </div>
 
       <h1 className="static-title">About TrackFurb</h1>

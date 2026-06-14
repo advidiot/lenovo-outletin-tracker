@@ -169,6 +169,8 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                             send_telegram_notification(p, "price_drop", old_price=db_price)
                             from backend.notifier.discord_bot import dispatch_watchlist_alerts
                             dispatch_watchlist_alerts(p, "price_drop", old_price=db_price)
+                            from backend.notifier.push import notify_price_drop
+                            notify_price_drop(p, old_price=db_price, new_price=current_price)
                         else:
                             send_push_notification(p, ntfy_type="price_hike", old_price=db_price)
                             dispatch_discord_alerts([p], "price_hike", old_price=db_price)

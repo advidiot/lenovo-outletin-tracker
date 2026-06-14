@@ -106,6 +106,19 @@ def get_all_active_products() -> tuple[Optional[list[dict]], bool]:
         _log("First page fetch failed. Aborting scrape completely.")
         return None, True
 
+    # Save live facetGroups to JSON for the dynamic frontend filters (Arch 4 & Lenovo dynamic specs)
+    facet_groups = data.get("facetGroups", [])
+    if facet_groups:
+        try:
+            import os
+            db_dir = os.path.dirname(os.path.abspath(settings.DB_FILE))
+            facet_groups_path = os.path.join(db_dir, "facet_groups.json")
+            with open(facet_groups_path, "w", encoding="utf-8") as fg_file:
+                json.dump(facet_groups, fg_file, indent=2, ensure_ascii=False)
+            _log(f"Saved live filter facetGroups to {facet_groups_path}")
+        except Exception as e:
+            _log(f"Error saving facetGroups: {e}")
+
     items = data.get("data", [])
     if not items or not isinstance(items, list):
         _log("Unexpected API response: 'data.data' is empty or not a list.")

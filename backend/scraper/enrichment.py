@@ -33,11 +33,48 @@ def parse_processor_brand(proc_str: Optional[str]) -> Optional[str]:
 def parse_processor_range(proc_str: Optional[str]) -> Optional[str]:
     if not proc_str:
         return None
-    cleaned = re.sub(r'[^A-Za-z0-9\- ]', '', proc_str)
-    match = re.search(r'(?i)(i[3579]|Ryzen R?\d+|Celeron|Athlon|Xeon|Atom|Pentium|A\d+|PRO A\d+|R\d)-?', cleaned)
-    if match:
-        return match.group(1)
-    return None
+    s = proc_str.replace("®", "").replace("™", "")
+    s_lower = s.lower()
+    
+    # 1. Intel Core Ultra
+    if "core ultra" in s_lower or "ultra" in s_lower:
+        for num in ["9", "7", "5", "3"]:
+            if f"ultra {num}" in s_lower or f"ultra  {num}" in s_lower:
+                return f"Intel Core Ultra {num}"
+        return "Intel Core Ultra"
+        
+    # 2. AMD Ryzen AI
+    if "ryzen ai" in s_lower:
+        for num in ["9", "7", "5", "3"]:
+            if f"ai {num}" in s_lower:
+                return f"AMD Ryzen AI {num}"
+        return "AMD Ryzen AI"
+
+    # 3. AMD Ryzen
+    if "ryzen" in s_lower:
+        for num in ["9", "7", "5", "3"]:
+            if f"ryzen {num}" in s_lower or f"ryzen r{num}" in s_lower:
+                return f"AMD Ryzen {num}"
+        return "AMD Ryzen"
+        
+    # 4. Intel Core iX
+    if "core" in s_lower and any(f"i{num}" in s_lower for num in ["3", "5", "7", "9"]):
+        for num in ["9", "7", "5", "3"]:
+            if f"i{num}" in s_lower:
+                return f"Intel Core i{num}"
+                
+    # 5. Intel Core X (e.g. Core 5 210H)
+    if "core" in s_lower:
+        for num in ["9", "7", "5", "3"]:
+            if re.search(r'\bcore\s+' + num + r'\b', s_lower):
+                return f"Intel Core {num}"
+                
+    # 6. Others
+    for other in ["Celeron", "Pentium", "Athlon", "Xeon", "Atom"]:
+        if other.lower() in s_lower:
+            return other
+            
+    return "Others"
 
 def parse_memory_size(mem_str: Optional[str]) -> Optional[str]:
     if not mem_str:
@@ -404,6 +441,8 @@ def get_laptops_data() -> List[Dict[str, Any]]:
                 "pointing-device": full_specs.get('Pointing Device'),
                 "ac-adapter": full_specs.get('AC Adapter / Power Supply'),
                 "color": full_specs.get('Color'),
+                "specs": specs,
+                "full_specs": full_specs,
             }
             laptops.append(laptop)
             

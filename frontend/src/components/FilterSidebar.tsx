@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import "./FilterSidebar.css";
+import { FacetGroup } from "../data";
 
 export interface FilterState {
   priceMin: number;
@@ -13,6 +14,16 @@ export interface FilterState {
   ddrGens: string[];
   touchscreenOnly: boolean;
   showUnavailable: boolean;
+  storageSizes: string[];
+  operatingSystems: string[];
+  weights: string[];
+  brands: string[];
+  series: string[];
+  features: string[];
+  colors: string[];
+  byTypes: string[];
+  byUses: string[];
+  gpuModels: string[];
 }
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -25,6 +36,16 @@ export const DEFAULT_FILTERS: FilterState = {
   gpuTypes: [],
   storageTypes: [],
   ddrGens: [],
+  storageSizes: [],
+  operatingSystems: [],
+  weights: [],
+  brands: [],
+  series: [],
+  features: [],
+  colors: [],
+  byTypes: [],
+  byUses: [],
+  gpuModels: [],
   touchscreenOnly: false,
   showUnavailable: false,
 };
@@ -38,11 +59,12 @@ interface FilterSidebarProps {
   /** For mobile bottom sheet */
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
+  facetGroups: FacetGroup[];
+  gpuModelOptions: string[];
 }
 
 const SCREEN_SIZES = ["13\"", "14\"", "15.6\"", "16\""];
 const RAM_OPTIONS = ["8GB", "16GB", "32GB", "64GB"];
-const CPU_BRANDS = ["Intel", "AMD"];
 const CONDITIONS = ["New", "Refurbished", "Certified Refurbished"];
 const GPU_TYPES = ["Integrated", "Dedicated"];
 const STORAGE_TYPES = ["SSD (NVMe)", "SSD (SATA)", "SSD", "HDD", "eMMC", "Multi"];
@@ -89,6 +111,16 @@ const activeFilterCount = (f: FilterState) =>
   f.gpuTypes.length +
   f.storageTypes.length +
   f.ddrGens.length +
+  f.storageSizes.length +
+  f.operatingSystems.length +
+  f.weights.length +
+  f.brands.length +
+  f.series.length +
+  f.features.length +
+  f.colors.length +
+  f.byTypes.length +
+  f.byUses.length +
+  f.gpuModels.length +
   (f.touchscreenOnly ? 1 : 0) +
   (f.showUnavailable ? 1 : 0);
 
@@ -103,8 +135,60 @@ export const FilterSidebar = ({
   onToggleCollapse,
   isMobileOpen,
   onMobileClose,
+  facetGroups,
+  gpuModelOptions,
 }: FilterSidebarProps) => {
   const count = activeFilterCount(filters);
+
+  const cpuOptions = useMemo(() => {
+    const procFacet = facetGroups.find((g) => g.facetId === "4374");
+    return procFacet ? procFacet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const brandOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4376");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const seriesOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4432");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const storageSizeOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4375");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const osOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4372");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const weightOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4570");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const featureOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4571");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const colorOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4373");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const byTypeOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4383");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
+
+  const byUseOptions = useMemo(() => {
+    const facet = facetGroups.find((g) => g.facetId === "4568");
+    return facet ? facet.items.map((it) => it.name) : [];
+  }, [facetGroups]);
 
   const SidebarContent = (
     <div className="sidebar-content">
@@ -226,6 +310,116 @@ export const FilterSidebar = ({
               Touchscreen ×
             </button>
           )}
+          {filters.brands.map((b) => (
+            <button
+              key={b}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, brands: toggle(filters.brands, b) })
+              }
+            >
+              {b} ×
+            </button>
+          ))}
+          {filters.series.map((s) => (
+            <button
+              key={s}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, series: toggle(filters.series, s) })
+              }
+            >
+              {s} ×
+            </button>
+          ))}
+          {filters.gpuModels.map((g) => (
+            <button
+              key={g}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, gpuModels: toggle(filters.gpuModels, g) })
+              }
+            >
+              {g} ×
+            </button>
+          ))}
+          {filters.features.map((f) => (
+            <button
+              key={f}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, features: toggle(filters.features, f) })
+              }
+            >
+              {f} ×
+            </button>
+          ))}
+          {filters.colors.map((c) => (
+            <button
+              key={c}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, colors: toggle(filters.colors, c) })
+              }
+            >
+              {c} ×
+            </button>
+          ))}
+          {filters.byTypes.map((t) => (
+            <button
+              key={t}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, byTypes: toggle(filters.byTypes, t) })
+              }
+            >
+              {t} ×
+            </button>
+          ))}
+          {filters.byUses.map((u) => (
+            <button
+              key={u}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, byUses: toggle(filters.byUses, u) })
+              }
+            >
+              {u} ×
+            </button>
+          ))}
+          {filters.weights.map((w) => (
+            <button
+              key={w}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, weights: toggle(filters.weights, w) })
+              }
+            >
+              {w} ×
+            </button>
+          ))}
+          {filters.operatingSystems.map((o) => (
+            <button
+              key={o}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, operatingSystems: toggle(filters.operatingSystems, o) })
+              }
+            >
+              {o} ×
+            </button>
+          ))}
+          {filters.storageSizes.map((s) => (
+            <button
+              key={s}
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, storageSizes: toggle(filters.storageSizes, s) })
+              }
+            >
+              {s} ×
+            </button>
+          ))}
           {(filters.priceMin > 0 || filters.priceMax < 300000) && (
             <button
               className="chip chip-active"
@@ -318,10 +512,10 @@ export const FilterSidebar = ({
           </div>
         </FilterSection>
 
-        {/* Processor brand */}
+        {/* Processor range */}
         <FilterSection title="Processor">
           <div className="checkbox-group">
-            {CPU_BRANDS.map((b) => (
+            {cpuOptions.map((b) => (
               <label key={b} className="checkbox-label">
                 <input
                   type="checkbox"
@@ -339,6 +533,222 @@ export const FilterSidebar = ({
             ))}
           </div>
         </FilterSection>
+
+        {/* Brand */}
+        {brandOptions.length > 0 && (
+          <FilterSection title="Brand">
+            <div className="checkbox-group">
+              {brandOptions.map((b) => (
+                <label key={b} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.brands.includes(b)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        brands: toggle(filters.brands, b),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {b}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* Series */}
+        {seriesOptions.length > 0 && (
+          <FilterSection title="Series">
+            <div className="checkbox-group">
+              {seriesOptions.map((s) => (
+                <label key={s} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.series.includes(s)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        series: toggle(filters.series, s),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {s}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* Storage Size */}
+        {storageSizeOptions.length > 0 && (
+          <FilterSection title="Storage Size">
+            <div className="checkbox-group">
+              {storageSizeOptions.map((s) => (
+                <label key={s} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.storageSizes.includes(s)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        storageSizes: toggle(filters.storageSizes, s),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {s}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* Operating System */}
+        {osOptions.length > 0 && (
+          <FilterSection title="Operating System">
+            <div className="checkbox-group">
+              {osOptions.map((o) => (
+                <label key={o} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.operatingSystems.includes(o)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        operatingSystems: toggle(filters.operatingSystems, o),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {o}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* Weight */}
+        {weightOptions.length > 0 && (
+          <FilterSection title="Weight">
+            <div className="checkbox-group">
+              {weightOptions.map((w) => (
+                <label key={w} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.weights.includes(w)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        weights: toggle(filters.weights, w),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {w}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* Features */}
+        {featureOptions.length > 0 && (
+          <FilterSection title="Features">
+            <div className="checkbox-group">
+              {featureOptions.map((f) => (
+                <label key={f} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.features.includes(f)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        features: toggle(filters.features, f),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {f}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* Color */}
+        {colorOptions.length > 0 && (
+          <FilterSection title="Color">
+            <div className="checkbox-group">
+              {colorOptions.map((c) => (
+                <label key={c} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.colors.includes(c)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        colors: toggle(filters.colors, c),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {c}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* By Type */}
+        {byTypeOptions.length > 0 && (
+          <FilterSection title="By Type">
+            <div className="checkbox-group">
+              {byTypeOptions.map((t) => (
+                <label key={t} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.byTypes.includes(t)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        byTypes: toggle(filters.byTypes, t),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {t}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* By Use */}
+        {byUseOptions.length > 0 && (
+          <FilterSection title="By Use">
+            <div className="checkbox-group">
+              {byUseOptions.map((u) => (
+                <label key={u} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.byUses.includes(u)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        byUses: toggle(filters.byUses, u),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {u}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
 
         {/* Condition */}
         <FilterSection title="Condition">
@@ -381,6 +791,30 @@ export const FilterSidebar = ({
             ))}
           </div>
         </FilterSection>
+
+        {/* Graphics Card */}
+        {gpuModelOptions.length > 0 && (
+          <FilterSection title="Graphics Card">
+            <div className="checkbox-group">
+              {gpuModelOptions.map((g) => (
+                <label key={g} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.gpuModels.includes(g)}
+                    onChange={() =>
+                      onFiltersChange({
+                        ...filters,
+                        gpuModels: toggle(filters.gpuModels, g),
+                      })
+                    }
+                    className="checkbox-input"
+                  />
+                  {g}
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+        )}
 
         {/* Storage Type */}
         <FilterSection title="Storage Type">

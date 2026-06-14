@@ -6,6 +6,7 @@ from backend.scraper.enrichment import (
     parse_processor_series,
     parse_ddr_gen,
     parse_storage_type,
+    parse_processor_range,
 )
 
 class TestEnrichmentParsers(unittest.TestCase):
@@ -65,6 +66,21 @@ class TestEnrichmentParsers(unittest.TestCase):
         self.assertEqual(parse_storage_type("1 TB HDD 5400rpm"), "HDD")
         self.assertEqual(parse_storage_type("64 GB eMMC"), "eMMC")
         self.assertEqual(parse_storage_type(None), None)
+
+    def test_parse_processor_range(self):
+        self.assertEqual(parse_processor_range("12th Generation Intel® Core™ i3-1215U"), "Intel Core i3")
+        self.assertEqual(parse_processor_range("12th Generation Intel® Core™ i5-12450H"), "Intel Core i5")
+        self.assertEqual(parse_processor_range("13th Generation Intel® Core™ i7-13620H"), "Intel Core i7")
+        self.assertEqual(parse_processor_range("AMD Ryzen™ 3 7320U Processor"), "AMD Ryzen 3")
+        self.assertEqual(parse_processor_range("AMD Ryzen™ 5 5625U Processor"), "AMD Ryzen 5")
+        self.assertEqual(parse_processor_range("AMD Ryzen™ 7 5825U Processor"), "AMD Ryzen 7")
+        self.assertEqual(parse_processor_range("AMD Ryzen™ AI 7 350 Processor"), "AMD Ryzen AI 7")
+        self.assertEqual(parse_processor_range("AMD Ryzen™ AI 9 365 Processor"), "AMD Ryzen AI 9")
+        self.assertEqual(parse_processor_range("Intel® Core™ 5 210H Processor"), "Intel Core 5")
+        self.assertEqual(parse_processor_range("Intel® Core™ Ultra 5 125H Processor"), "Intel Core Ultra 5")
+        self.assertEqual(parse_processor_range("Intel® Core™ Ultra 7 155H Processor"), "Intel Core Ultra 7")
+        self.assertEqual(parse_processor_range("Intel® Core™ Ultra 9 185H Processor"), "Intel Core Ultra 9")
+        self.assertEqual(parse_processor_range(None), None)
 
 if __name__ == "__main__":
     unittest.main()

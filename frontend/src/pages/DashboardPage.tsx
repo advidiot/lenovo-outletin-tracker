@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { dataToCsv, download, LaptopData } from "../data";
+import { dataToCsv, download, LaptopData, FacetGroup, cleanGpuName } from "../data";
 import { DashboardStats } from "../components/DashboardStats";
 import { FilterSidebar, FilterState, DEFAULT_FILTERS } from "../components/FilterSidebar";
 import { FloatingCompareBar } from "../components/FloatingCompareBar";
@@ -18,6 +18,27 @@ interface DashboardPageProps {
   toggleWatch: (code: string) => void;
   compareList: LaptopData[];
   toggleCompare: (laptop: LaptopData) => void;
+  facetGroups: FacetGroup[];
+}
+
+function parseWeight(weightStr: string | null): number | null {
+  if (!weightStr) return null;
+  const match = weightStr.toLowerCase().match(/([\d\.]+)\s*kg/);
+  if (match) {
+    return parseFloat(match[1]);
+  }
+  return null;
+}
+
+function matchWeightRange(weightKg: number, selectedRange: string): boolean {
+  const cleanRange = selectedRange.replace(/\s+/g, "").toLowerCase();
+  const match = cleanRange.match(/([\d\.]+)kg-([\d\.]+)kg/);
+  if (match) {
+    const min = parseFloat(match[1]);
+    const max = parseFloat(match[2]);
+    return weightKg >= min && weightKg <= max;
+  }
+  return false;
 }
 
 function applyFilters(
@@ -50,13 +71,22 @@ function applyFilters(
     }
 
     if (filters.processorBrands.length > 0) {
-      const brand = String(laptop["processor-brand"] || "");
-      if (
-        !filters.processorBrands.some(
-          (b) => brand.toLowerCase() === b.toLowerCase()
-        )
-      )
-        return false;
+      const proc = String(laptop["processor"] || "").toLowerCase().replace(/[®™]/g, "");
+      const matched = filters.processorBrands.some((selectedCpu) => {
+        const cleanSelected = selectedCpu.toLowerCase().replace(/[®™]/g, "");
+        if (cleanSelected === "all intel processors") {
+          return proc.includes("intel");
+        }
+        if (cleanSelected === "all amd processors") {
+          return proc.includes("amd") || proc.includes("ryzen");
+        }
+        if (cleanSelected.includes("vpro")) {
+          const base = cleanSelected.replace("vpro", "").trim();
+          return proc.includes(base) && proc.includes("vpro");
+        }
+        return proc.includes(cleanSelected);
+      });
+      if (!matched) return false;
     }
 
     if (filters.conditions.length > 0) {
@@ -102,6 +132,133 @@ function applyFilters(
     if (filters.touchscreenOnly) {
       const isTouch = !!laptop["touch-screen"];
       if (!isTouch) return false;
+    }
+
+    if (filters.brands && filters.brands.length > 0) {
+      const model = String(laptop["model"] || "").toLowerCase();
+      const brand = String(laptop["brand"] || "").toLowerCase();
+      const matched = filters.brands.some((b) => {
+        const cleanB = b.toLowerCase();
+        return model.includes(cleanB) || brand.includes(cleanB);
+      });
+      if (!matched) return false;
+    }
+
+    if (filters.series && filters.series.length > 0) {
+      const model = String(laptop["model"] || "").toLowerCase();
+      const matched = filters.series.some((s) => {
+        const cleanS = s.toLowerCase().replace(/series/g, "").replace(/laptops/g, "").trim();
+        if (cleanS.includes("2-in-1")) {
+          const base = cleanS.replace("2-in-1", "").trim();
+          return model.includes(base) && (model.includes("2-in-1") || model.includes("flex"));
+        }
+        return model.includes(cleanS);
+      });
+      if (!matched) return false;
+    }
+
+    if (filters.storageSizes && filters.storageSizes.length > 0) {
+      const storeSize = String(laptop["storage-size"] || "").toLowerCase().replace(/\s+/g, "");
+      const matched = filters.storageSizes.some((s) => {
+        const cleanS = s.toLowerCase().replace(/\s+/g, "");
+        return storeSize === cleanS;
+      });
+      if (!matched) return false;
+    }
+
+    if (filters.operatingSystems && filters.operatingSystems.length > 0) {
+      const os = String(laptop["operating-system"] || "").toLowerCase();
+      const matched = filters.operatingSystems.some((o) => {
+        return os.includes(o.toLowerCase());
+      });
+      if (!matched) return false;
+    }
+
+    if (filters.colors && filters.colors.length > 0) {
+      const color = String(laptop.full_specs?.Color || laptop.specs?.Color || laptop.color || "").toLowerCase();
+      const matched = filters.colors.some((c) => {
+        return color.includes(c.toLowerCase());
+      });
+      if (!matched) return false;
+    }
+
+    if (filters.weights && filters.weights.length > 0) {
+      const rawWeight = laptop.weight || laptop.specs?.Weight || laptop.full_specs?.Weight;
+      const weightNum = parseWeight(rawWeight);
+      if (weightNum === null) return false;
+      const matched = filters.weights.some((w) => matchWeightRange(weightNum, w));
+      if (!matched) return false;
+    }
+
+    if (filters.features && filters.features.length > 0) {
+      const matched = filters.features.some((f) => {
+        const cleanF = f.toLowerCase();
+        if (cleanF === "touch screen") {
+          return !!laptop["touch-screen"];
+        }
+        if (cleanF === "non-touch") {
+          return !laptop["touch-screen"];
+        }
+        if (cleanF === "2-in-1") {
+          const model = String(laptop["model"] || "").toLowerCase();
+          return model.includes("2-in-1") || model.includes("flex") || model.includes("yoga");
+        }
+        if (cleanF === "fingerprint reader") {
+          return !!(laptop.full_specs?.["Fingerprint Reader"] || laptop.specs?.["Fingerprint Reader"]);
+        }
+        if (cleanF === "trackpoint") {
+          return String(laptop.full_specs?.["Pointing Device"] || "").toLowerCase().includes("trackpoint");
+        }
+        return false;
+      });
+      if (!matched) return false;
+    }
+
+    if (filters.byTypes && filters.byTypes.length > 0) {
+      const model = String(laptop["model"] || "").toLowerCase();
+      const matched = filters.byTypes.some((t) => {
+        const cleanT = t.toLowerCase();
+        if (cleanT.includes("convertibles")) {
+          return model.includes("yoga") || model.includes("flex") || model.includes("2-in-1");
+        }
+        if (cleanT.includes("thin") || cleanT.includes("light")) {
+          return model.includes("slim") || model.includes("yoga") || model.includes("air");
+        }
+        if (cleanT.includes("traditional")) {
+          return !model.includes("yoga") && !model.includes("flex") && !model.includes("2-in-1") && !model.includes("all-in-one") && !model.includes("aio");
+        }
+        if (cleanT.includes("all-in-one") || cleanT.includes("aio")) {
+          return model.includes("all-in-one") || model.includes("aio");
+        }
+        return false;
+      });
+      if (!matched) return false;
+    }
+
+    if (filters.byUses && filters.byUses.length > 0) {
+      const model = String(laptop["model"] || "").toLowerCase();
+      const matched = filters.byUses.some((u) => {
+        const cleanU = u.toLowerCase();
+        if (cleanU === "gaming") {
+          return model.includes("loq") || model.includes("legion") || model.includes("gaming");
+        }
+        if (cleanU === "creator") {
+          return model.includes("yoga pro") || model.includes("ideapad pro") || model.includes("slim 7") || model.includes("slim 9");
+        }
+        if (cleanU === "work") {
+          return model.includes("thinkpad") || model.includes("thinkbook") || model.includes("v15") || model.includes("v14");
+        }
+        return true;
+      });
+      if (!matched) return false;
+    }
+
+    if (filters.gpuModels && filters.gpuModels.length > 0) {
+      const rawGpu = String(laptop["graphic-card"] || "");
+      const cleanG = cleanGpuName(rawGpu);
+      if (!filters.gpuModels.includes(cleanG)) {
+        return false;
+      }
     }
 
     if (searchQuery.trim()) {
@@ -156,6 +313,7 @@ export const DashboardPage = ({
   toggleWatch,
   compareList,
   toggleCompare,
+  facetGroups,
 }: DashboardPageProps) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -201,6 +359,14 @@ export const DashboardPage = ({
     const filtered = applyFilters(base, filters, searchQuery);
     return sortLaptops(filtered, sortBy);
   }, [laptopData, filters, searchQuery, showWatchlistOnly, watchlist, sortBy]);
+
+  const gpuModelOptions = useMemo(() => {
+    const rawGpus = laptopData
+      .map((l) => l["graphic-card"] as string)
+      .filter(Boolean);
+    const cleaned = rawGpus.map(cleanGpuName);
+    return Array.from(new Set(cleaned)).sort((a, b) => a.localeCompare(b));
+  }, [laptopData]);
 
   const handleBestDealClick = useCallback(
     (code: string) => navigate(`/laptop/${code}`),
@@ -382,6 +548,8 @@ export const DashboardPage = ({
           onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           isMobileOpen={mobileFilterOpen}
           onMobileClose={() => setMobileFilterOpen(false)}
+          facetGroups={facetGroups}
+          gpuModelOptions={gpuModelOptions}
         />
 
         <div className="dashboard-grid-area">

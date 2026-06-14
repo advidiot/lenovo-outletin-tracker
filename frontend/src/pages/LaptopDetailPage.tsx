@@ -143,7 +143,7 @@ export const LaptopDetailPage = ({
         <div className="not-found-icon">🔍</div>
         <h2>Laptop not found</h2>
         <p>Product <code>{productNumber}</code> could not be found in the database.</p>
-        <Link to="/" className="btn btn-primary">Back to Grid</Link>
+        <Link to="/browse" className="btn btn-primary">Back to Grid</Link>
       </div>
     );
   }
@@ -159,7 +159,7 @@ export const LaptopDetailPage = ({
       <div className="detail-breadcrumb">
         <button onClick={() => navigate(-1)} className="back-btn">← Back</button>
         <span className="breadcrumb-sep">/</span>
-        <Link to="/" className="breadcrumb-link">Home</Link>
+        <Link to="/browse" className="breadcrumb-link">Home</Link>
         <span className="breadcrumb-sep">/</span>
         <span className="breadcrumb-current">{String(laptop["model"])}</span>
       </div>

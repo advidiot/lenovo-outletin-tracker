@@ -66,7 +66,7 @@ export const Navbar = ({ watchlistCount, onSearch, searchQuery }: NavbarProps) =
     <nav className="navbar">
       <div className="navbar-inner">
         {/* Left: Logo */}
-        <Link to="/" className="navbar-brand" onClick={() => setMobileMenuOpen(false)}>
+        <Link to="/browse" className="navbar-brand" onClick={() => setMobileMenuOpen(false)}>
           <div className="navbar-logo">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <rect width="24" height="24" rx="6" fill="var(--accent-teal)"/>
@@ -107,7 +107,7 @@ export const Navbar = ({ watchlistCount, onSearch, searchQuery }: NavbarProps) =
 
           <button
             className={`navbar-watchlist-btn ${watchlistCount > 0 ? "has-items" : ""}`}
-            onClick={() => navigate("/?watchlist=1")}
+            onClick={() => navigate("/browse?watchlist=1")}
             aria-label={`Watchlist (${watchlistCount} items)`}
           >
             <StarIcon filled={watchlistCount > 0} />
@@ -151,7 +151,7 @@ export const Navbar = ({ watchlistCount, onSearch, searchQuery }: NavbarProps) =
           </div>
           <button
             className="mobile-menu-item"
-            onClick={() => { navigate("/?watchlist=1"); setMobileMenuOpen(false); }}
+            onClick={() => { navigate("/browse?watchlist=1"); setMobileMenuOpen(false); }}
           >
             <StarIcon filled={watchlistCount > 0} />
             Watchlist ({watchlistCount})

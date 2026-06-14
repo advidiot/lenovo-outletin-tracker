@@ -147,7 +147,7 @@ export const ComparePage = ({ compareList, onRemove, onClear }: ComparePageProps
         <div className="compare-empty-icon">📊</div>
         <h2>Nothing to compare</h2>
         <p>Select laptops from the grid to compare them side by side.</p>
-        <Link to="/" className="btn btn-primary">Go to Grid</Link>
+        <Link to="/browse" className="btn btn-primary">Go to Grid</Link>
       </div>
     );
   }
@@ -159,13 +159,13 @@ export const ComparePage = ({ compareList, onRemove, onClear }: ComparePageProps
         <div className="compare-breadcrumb">
           <button onClick={() => navigate(-1)} className="back-btn">← Back</button>
           <span className="breadcrumb-sep">/</span>
-          <Link to="/" className="breadcrumb-link">Home</Link>
+          <Link to="/browse" className="breadcrumb-link">Home</Link>
           <span className="breadcrumb-sep">/</span>
           <span className="breadcrumb-current">Compare ({compareList.length} laptops)</span>
         </div>
 
         <div className="compare-header-actions">
-          <Link to="/" className="btn btn-ghost btn-sm">+ Add another</Link>
+          <Link to="/browse" className="btn btn-ghost btn-sm">+ Add another</Link>
           <button className="btn btn-ghost btn-sm" onClick={onClear}>Clear all</button>
         </div>
       </div>
@@ -361,7 +361,7 @@ export const ComparePage = ({ compareList, onRemove, onClear }: ComparePageProps
 
       {/* Footer */}
       <div className="compare-footer">
-        <Link to="/" className="btn btn-primary">Back to Grid</Link>
+        <Link to="/browse" className="btn btn-primary">Back to Grid</Link>
       </div>
     </div>
   );

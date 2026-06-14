@@ -48,6 +48,21 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_error_json(500, f"Database error: {str(e)}")
             return
 
+        elif path == "/api/filters":
+            try:
+                db_dir = os.path.dirname(os.path.abspath(settings.DB_FILE))
+                facet_groups_path = os.path.join(db_dir, "facet_groups.json")
+                if os.path.exists(facet_groups_path):
+                    with open(facet_groups_path, "r", encoding="utf-8") as fg_file:
+                        groups = json.load(fg_file)
+                    if groups and isinstance(groups, list) and len(groups) > 0:
+                        self.send_json(groups[0].get("facets", []))
+                        return
+                self.send_json([])
+            except Exception as e:
+                self.send_error_json(500, f"Error loading filters: {str(e)}")
+            return
+
         elif path == "/api/price_history":
             codes = query_params.get("code")
             if not codes:
@@ -63,6 +78,14 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == "/api/vapid_public_key":
             self.send_json({"publicKey": settings.VAPID_PUBLIC_KEY or ""})
+            return
+
+        elif path == "/api/config":
+            self.send_json({
+                "vapidPublicKey": settings.VAPID_PUBLIC_KEY or "",
+                "discordInvite": settings.DISCORD_INVITE_URL or "",
+                "telegramChannel": settings.TELEGRAM_CHANNEL_URL or ""
+            })
             return
 
         # Serve static assets from build directory (P0 Sec Fix 1 & P1 FE Fix 2)

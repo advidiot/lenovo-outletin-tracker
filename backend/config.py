@@ -71,6 +71,10 @@ class Settings:
     VAPID_PUBLIC_KEY: Optional[str] = None
     VAPID_SUBJECT: str = "mailto:admin@logaze.com"
     PUSH_ENABLED: bool = False
+
+    # Landing Page Links
+    DISCORD_INVITE_URL: str = "https://discord.gg/example"
+    TELEGRAM_CHANNEL_URL: str = "https://t.me/example"
     
     # Scraper Robustness
     MAX_FAILED_PAGES: int = 2
@@ -176,6 +180,16 @@ class Settings:
 
         push_enabled = bool(vapid_private_key and vapid_public_key)
 
+        discord_invite_url = os.environ.get("DISCORD_INVITE_URL", "https://discord.gg/example")
+        telegram_channel_url = os.environ.get("TELEGRAM_CHANNEL_URL")
+        if not telegram_channel_url:
+            if telegram_channel_id and telegram_channel_id.startswith("@"):
+                telegram_channel_url = f"https://t.me/{telegram_channel_id[1:]}"
+            elif telegram_channel_id and not telegram_channel_id.startswith("-"):
+                telegram_channel_url = f"https://t.me/{telegram_channel_id}"
+            else:
+                telegram_channel_url = "https://t.me/example"
+
         try:
             max_failed_pages = int(os.environ.get("MAX_FAILED_PAGES", "2"))
         except ValueError:
@@ -206,6 +220,8 @@ class Settings:
             VAPID_PUBLIC_KEY=vapid_public_key,
             VAPID_SUBJECT=vapid_subject,
             PUSH_ENABLED=push_enabled,
+            DISCORD_INVITE_URL=discord_invite_url,
+            TELEGRAM_CHANNEL_URL=telegram_channel_url,
             MAX_FAILED_PAGES=max_failed_pages,
         )
 
