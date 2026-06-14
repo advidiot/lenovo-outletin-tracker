@@ -169,14 +169,14 @@ export const LenovoCardGrid = ({
                   )}
                 </div>
                 
-                {(laptop["orig-price"] || laptop["percentage-savings"]) && (
+                {(Number(laptop["orig-price"]) > 0 || Number(laptop["percentage-savings"]) > 0) && (
                   <div className="price-secondary">
-                    {laptop["orig-price"] && (
+                    {Number(laptop["orig-price"]) > 0 && (
                       <span className="original-price">
                         ₹{Number(laptop["orig-price"]).toLocaleString("en-IN")}
                       </span>
                     )}
-                    {laptop["percentage-savings"] && (
+                    {Number(laptop["percentage-savings"]) > 0 && (
                       <span className="badge badge-green discount-badge">
                         {Math.round(Number(laptop["percentage-savings"]))}% off
                       </span>

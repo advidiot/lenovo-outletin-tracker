@@ -11,7 +11,8 @@
 .lenovo-card {
   display: flex;
   flex-direction: column;
-  height: max-content;
+  height: 100%;
+  min-height: max-content;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
@@ -20,6 +21,10 @@
   cursor: pointer;
   position: relative;
   overflow: hidden;
+}
+
+.lenovo-card > * {
+  flex-shrink: 0;
 }
 
 .lenovo-card:hover {
