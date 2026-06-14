@@ -372,12 +372,18 @@ def main() -> None:
         httpd.server_close()
         _log("Server stopped. Waiting for background thread shutdown...")
         scraper_thread.join(timeout=3)
-        if is_discord_enabled() and bot and getattr(bot, 'loop', None) and bot.loop.is_running():
+        if (is_discord_enabled() and bot and hasattr(bot, 'loop') and 
+                hasattr(bot.loop, 'is_running') and bot.loop.is_running()):
             _log("Closing Discord bot connection...")
+            import concurrent.futures
             fut = asyncio.run_coroutine_threadsafe(bot.close(), bot.loop)
             try:
                 fut.result(timeout=3)
+            except (asyncio.CancelledError, concurrent.futures.CancelledError):
+                _log("Discord bot connection closed.")
+            except (asyncio.TimeoutError, concurrent.futures.TimeoutError, TimeoutError):
+                _log("Timeout waiting for Discord bot connection to close.")
             except Exception as e:
-                _log(f"Error closing Discord bot: {e}")
+                _log(f"Error closing Discord bot: {type(e).__name__}: {e}")
         _log("Stopped.")
         sys.exit(0)
