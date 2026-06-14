@@ -6,21 +6,10 @@ from typing import Optional, Dict, List
 # Core Directory Paths
 PACKAGE_DIR = Path(__file__).parent.parent.resolve()
 
-def load_env_file() -> None:
-    env_path = PACKAGE_DIR / ".env"
-    if env_path.exists():
-        try:
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        key, val = line.split("=", 1)
-                        os.environ[key.strip()] = val.strip().strip('"').strip("'")
-        except Exception as e:
-            print(f"Error loading .env file: {e}")
+import dotenv
 
 # Load environment variables from .env if present
-load_env_file()
+dotenv.load_dotenv(PACKAGE_DIR / ".env")
 
 @dataclass
 class Settings:
@@ -31,6 +20,7 @@ class Settings:
     DB_FILE: Path
     LOG_FILE: Path
     POLL_INTERVAL: int = 60
+    ADMIN_API_KEY: Optional[str] = None
 
     # Discord Notifications Configuration
     DISCORD_BOT_TOKEN: Optional[str] = None
@@ -97,6 +87,7 @@ class Settings:
         log_file = directory / "data" / "lenovo_tracker.log"
 
         poll_interval = int(os.environ.get("POLL_INTERVAL", "60"))
+        admin_api_key = os.environ.get("ADMIN_API_KEY")
 
         discord_bot_token = os.environ.get("DISCORD_BOT_TOKEN")
         try:
@@ -201,6 +192,7 @@ class Settings:
             DB_FILE=db_file,
             LOG_FILE=log_file,
             POLL_INTERVAL=poll_interval,
+            ADMIN_API_KEY=admin_api_key,
             DISCORD_BOT_TOKEN=discord_bot_token,
             OWNER_USER_ID=owner_user_id,
             DISCORD_ENABLED=discord_enabled,

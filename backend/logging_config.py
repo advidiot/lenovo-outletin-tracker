@@ -1,7 +1,12 @@
 import logging
 import sys
+import time
 from logging.handlers import RotatingFileHandler
 from backend.config import settings
+
+def current_time() -> str:
+    """Return the current local time as a human-readable string."""
+    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 logger = logging.getLogger("lenovo_tracker")
 logger.setLevel(logging.INFO)

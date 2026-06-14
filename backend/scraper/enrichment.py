@@ -2,15 +2,12 @@ import json
 import re
 import urllib.parse
 import time
+import math
 from typing import Optional, Dict, List, Any
 from backend.config import settings
-from backend.logging_config import _log
+from backend.logging_config import _log, current_time
 from backend.db.connection import get_db_connection, db_connection
 from backend.scraper.api import _request
-
-def current_time() -> str:
-    """Return the current local time as a human-readable string."""
-    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 # ---------------------------------------------------------------------------
 # Spec Parsing & Extraction Helpers
@@ -326,7 +323,6 @@ def parse_aspect_ratio(resolution: Optional[str]) -> Optional[str]:
     if abs(ratio - 32/9) < 0.05:
         return "32:9"
     
-    import math
     gcd = math.gcd(w, h)
     return f"{w // gcd}:{h // gcd}"
 
@@ -406,8 +402,6 @@ def get_laptops_data() -> List[Dict[str, Any]]:
                 "storage-type": parse_storage_type(store),
                 "display": disp,
                 "screen-size": parse_screen_size(disp),
-                "screen-has-ips": "ips" in disp.lower() if disp else False,
-                "screen-has-oled": "oled" in disp.lower() if disp else False,
                 "panel-type": "IPS" if disp and "ips" in disp.lower() else "OLED" if disp and "oled" in disp.lower() else "TN" if disp and "tn" in disp.lower() else None,
                 "touch-screen": "touch" in disp.lower() and "non-touch" not in disp.lower() if disp else False,
                 "resolution": res,
@@ -650,27 +644,24 @@ def verify_and_enrich(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if not prod_code:
                 continue
 
-            # Ghost filtering
-            inv_status = item.get("inventoryStatus")  # 1 = available, 2 = unavailable
+            inv_status = item.get("inventoryStatus") # 1 = available, 2 = unavailable
             if inv_status == 2:
                 unavailable_codes.add(prod_code)
-                _log(f"[Verify+Enrich] Ghost detected: {prod_code} (inventoryStatus=2). Excluded.")
 
             # Spec enrichment — only for products missing full_specs
             # (also picks up brand-new products just inserted in this cycle)
-            if prod_code in missing_specs_codes or prod_code not in missing_specs_codes and inv_status is not None:
+            if prod_code in missing_specs_codes:
                 classification = item.get("classification", [])
-                if classification or inv_status is not None:
-                    full_specs_dict = {
-                        s["a"]: s["b"]
-                        for s in classification
-                        if "a" in s and "b" in s
-                    }
-                    if inv_status is not None:
-                        full_specs_dict["__inventoryStatus"] = inv_status
+                full_specs_dict = {
+                    s["a"]: s["b"]
+                    for s in classification
+                    if "a" in s and "b" in s
+                }
+                if inv_status is not None:
+                    full_specs_dict["__inventoryStatus"] = inv_status
 
-                    if prod_code in missing_specs_codes and full_specs_dict:
-                        specs_to_write.append((json.dumps(full_specs_dict, ensure_ascii=False), prod_code))
+                if full_specs_dict:
+                    specs_to_write.append((json.dumps(full_specs_dict, ensure_ascii=False), prod_code))
 
         # Write enriched specs to DB
         if specs_to_write:
@@ -686,6 +677,8 @@ def verify_and_enrich(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 _log(f"[Verify+Enrich] DB write for full_specs failed: {e}")
 
         ghost_count = len(unavailable_codes)
+        if ghost_count > 0:
+            _log(f"[Verify+Enrich] Ghosts filtered ({ghost_count}): {', '.join(sorted(unavailable_codes))}")
         _log(f"[Verify+Enrich] Done. Ghosts filtered: {ghost_count} | Specs enriched: {enriched_count}/{len(missing_specs_codes)}")
 
     except Exception as e:

@@ -2,15 +2,11 @@ import json
 import time
 from typing import Optional, List, Dict, Any
 from backend.config import settings
-from backend.logging_config import _log
+from backend.logging_config import _log, current_time
 from backend.db.connection import get_db_connection
 from backend.notifier.ntfy import send_push_notification, _send_batch_summary
 from backend.notifier.discord_bot import dispatch_discord_alerts
 from backend.notifier.telegram import send_telegram_notification
-
-def current_time() -> str:
-    """Return the current local time as a human-readable string."""
-    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 def _compute_listing_duration(first_seen: Optional[str], removed_at: str) -> Optional[str]:
     if not first_seen:

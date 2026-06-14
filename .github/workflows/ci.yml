@@ -15,11 +15,22 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-node-version: '3.11'
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Check Python compilation
         run: |
           python3 -m py_compile app.py backend/*.py backend/**/*.py
+
+      - name: Run tests
+        env:
+          PORT: '8000'
+        run: |
+          python -m unittest discover -s backend/tests
 
   validate-frontend:
     runs-on: ubuntu-latest

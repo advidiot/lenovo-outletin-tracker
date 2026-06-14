@@ -98,6 +98,35 @@ def _handle_shutdown(signum: int, frame) -> None:
     if httpd:
         threading.Thread(target=httpd.shutdown, daemon=True).start()
 
+def dispatch_all_notifications(new_listings: list, back_in_stock: list, is_first_run: bool, silent: bool) -> None:
+    """Dispatches Telegram notifications and Web Push notifications for updates."""
+    if is_first_run or silent:
+        return
+
+    # Telegram notifications for back_in_stock
+    if back_in_stock:
+        if len(back_in_stock) >= settings.NOTIFICATION_BATCH_THRESHOLD:
+            send_telegram_batch(back_in_stock, "restock")
+        else:
+            for p in back_in_stock:
+                send_telegram_notification(p, "restock")
+                time.sleep(1)
+
+    # Telegram notifications for new_listings (Point 3)
+    if new_listings:
+        if len(new_listings) >= settings.NOTIFICATION_BATCH_THRESHOLD:
+            send_telegram_batch(new_listings, "added")
+        else:
+            for p in new_listings:
+                send_telegram_notification(p, "added")
+                time.sleep(1)
+
+    # Web Push notifications
+    for p in new_listings:
+        notify_new_listing(p)
+    for p in back_in_stock:
+        notify_back_in_stock(p)
+
 # ---------------------------------------------------------------------------
 # Background Scraper Loop & Daemon
 # ---------------------------------------------------------------------------
@@ -159,19 +188,7 @@ def run_scraper_loop(args):
                     )
 
                     # Dispatch Telegram + Push notifications
-                    if not (is_first_run or args.silent):
-                        if back_in_stock:
-                            if len(back_in_stock) >= settings.NOTIFICATION_BATCH_THRESHOLD:
-                                send_telegram_batch(back_in_stock, "restock")
-                            else:
-                                for p in back_in_stock:
-                                    send_telegram_notification(p, "restock")
-                                    time.sleep(1)
-                        
-                        for p in new_listings:
-                            notify_new_listing(p)
-                        for p in back_in_stock:
-                            notify_back_in_stock(p)
+                    dispatch_all_notifications(new_listings, back_in_stock, is_first_run or args.silent, args.silent)
 
                     conn = get_db_connection()
                     try:
@@ -303,19 +320,7 @@ def main() -> None:
             )
 
             # Dispatch Telegram + Push notifications
-            if not (is_first_run or args.silent):
-                if back_in_stock:
-                    if len(back_in_stock) >= settings.NOTIFICATION_BATCH_THRESHOLD:
-                        send_telegram_batch(back_in_stock, "restock")
-                    else:
-                        for p in back_in_stock:
-                            send_telegram_notification(p, "restock")
-                            time.sleep(1)
-                
-                for p in new_listings:
-                    notify_new_listing(p)
-                for p in back_in_stock:
-                    notify_back_in_stock(p)
+            dispatch_all_notifications(new_listings, back_in_stock, is_first_run or args.silent, args.silent)
 
             conn = get_db_connection()
             try:

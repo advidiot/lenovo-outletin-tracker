@@ -1,4 +1,5 @@
 import sqlite3
+import json
 from backend.db.connection import get_db_connection
 from backend.logging_config import _log
 
@@ -206,7 +207,6 @@ def run_migrations() -> None:
             rows = cursor.fetchall()
             
             # Store existing data
-            import json
             existing_subs = []
             for r in rows:
                 existing_subs.append({

@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional, List, Dict, Any
 from backend.config import settings
-from backend.logging_config import _log
+from backend.logging_config import _log, current_time
 from backend.db.connection import get_db_connection
 
 try:
@@ -13,10 +13,6 @@ except ImportError:
 
 _discord_bot: Optional["LogazeBot"] = None
 SYNC_COMMANDS: bool = False
-
-def current_time() -> str:
-    import time
-    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 def is_discord_enabled() -> bool:
     return bool(HAS_DISCORD and settings.DISCORD_BOT_TOKEN and settings.OWNER_USER_ID)

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+data/
+backend/tests/
+frontend/node_modules/
+frontend/dist/
+local_docs/
+archival/
+.env
+README.md

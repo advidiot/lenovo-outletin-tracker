@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import urllib.parse
 import mimetypes
 import http.server
@@ -15,7 +16,7 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
         # Enable CORS
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key')
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -34,13 +35,32 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
     def send_error_json(self, status_code: int, message: str):
         self.send_json({"error": message}, status_code)
 
+    def is_authorized(self) -> bool:
+        """Verifies if the client has administrative privileges."""
+        if not settings.ADMIN_API_KEY:
+            return True
+        auth_header = self.headers.get("Authorization")
+        if auth_header:
+            if auth_header.startswith("Bearer "):
+                token = auth_header.split(" ", 1)[1]
+                if token == settings.ADMIN_API_KEY:
+                    return True
+        api_key_header = self.headers.get("X-API-Key")
+        if api_key_header == settings.ADMIN_API_KEY:
+            return True
+        return False
+
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         query_params = urllib.parse.parse_qs(parsed_url.query)
 
         # Route GET API endpoints
-        if path == "/api/laptops":
+        if path == "/api/health":
+            self.send_json({"status": "ok"})
+            return
+
+        elif path == "/api/laptops":
             try:
                 data = get_laptops_data()
                 self.send_json(data)
@@ -123,6 +143,12 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
 
+        # Protect administrative endpoints
+        if path in ("/api/scrape", "/api/clean_ghosts", "/api/enrich_specs"):
+            if not self.is_authorized():
+                self.send_error_json(401, "Unauthorized")
+                return
+
         # Scrape API triggers an in-process scan under lock
         if path == "/api/scrape":
             # Late imports to avoid circular dependency
@@ -188,7 +214,6 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
                         cursor = conn.cursor()
                         cursor.execute("SELECT id FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
                         row = cursor.fetchone()
-                        import time
                         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
                         
                         if row:
@@ -241,7 +266,6 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
                                 return
                             sub_id = row[0]
                             
-                        import time
                         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
                         
                         # Sync: full replace
@@ -385,15 +409,16 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
 
     def serve_file(self, file_path: str, content_type: str):
         try:
-            with open(file_path, "rb") as f:
-                content = f.read()
+            file_size = os.path.getsize(file_path)
             self.send_response(200)
             self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Content-Length", str(file_size))
             # Add cache control for hashed assets under assets/
             if "assets/" in file_path:
                 self.send_header("Cache-Control", "public, max-age=31536000, immutable")
             self.end_headers()
-            self.wfile.write(content)
+            with open(file_path, "rb") as f:
+                import shutil
+                shutil.copyfileobj(f, self.wfile)
         except Exception as e:
-            self.send_error_json(500, f"Error reading file {os.path.basename(file_path)}: {str(e)}")
+            _log(f"Error serving file {os.path.basename(file_path)}: {str(e)}")

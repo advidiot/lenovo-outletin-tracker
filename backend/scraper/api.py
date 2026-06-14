@@ -46,8 +46,11 @@ def _request(method: str, url: str, **kwargs) -> requests.Response:
         return session.request(method, url, **kwargs)
     except Exception as e:
         _log(f"HTTP connection failed: {e}. Recreating session and retrying once...")
-        session = _recreate_session()
-        return session.request(method, url, **kwargs)
+        try:
+            session = _recreate_session()
+            return session.request(method, url, **kwargs)
+        except Exception as retry_e:
+            raise retry_e from e
 
 def fetch_products(page: int, page_size: int = None) -> Optional[dict]:
     """Fetch a single page of products from the Lenovo Outlet API."""
@@ -86,7 +89,12 @@ def fetch_products(page: int, page_size: int = None) -> Optional[dict]:
             last_error = f"Network error: {e}"
 
         if attempt < settings.MAX_PAGE_RETRIES:
-            delay = settings.RETRY_DELAYS[attempt]
+            if settings.RETRY_DELAYS and attempt < len(settings.RETRY_DELAYS):
+                delay = settings.RETRY_DELAYS[attempt]
+            elif settings.RETRY_DELAYS:
+                delay = settings.RETRY_DELAYS[-1]
+            else:
+                delay = 5.0
             _log(f"Page {page} fetch failed ({last_error}). Retrying in {delay}s… (attempt {attempt + 1}/{settings.MAX_PAGE_RETRIES})")
             time.sleep(delay)
 
