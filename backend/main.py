@@ -26,7 +26,8 @@ from backend.notifier.telegram import (
 )
 from backend.notifier.push import (
     notify_new_listing,
-    notify_back_in_stock
+    notify_back_in_stock,
+    notify_batch
 )
 
 # Global state
@@ -122,10 +123,21 @@ def dispatch_all_notifications(new_listings: list, back_in_stock: list, is_first
                 time.sleep(1)
 
     # Web Push notifications
-    for p in new_listings:
-        notify_new_listing(p)
-    for p in back_in_stock:
-        notify_back_in_stock(p)
+    if new_listings:
+        if len(new_listings) >= 5:
+            notify_batch(new_listings, "new_listing")
+        else:
+            for p in new_listings:
+                notify_new_listing(p)
+                
+    if back_in_stock:
+        if len(back_in_stock) >= 5:
+            notify_batch(back_in_stock, "back_in_stock")
+        else:
+            for p in back_in_stock:
+                notify_back_in_stock(p)
+
+
 
 # ---------------------------------------------------------------------------
 # Background Scraper Loop & Daemon

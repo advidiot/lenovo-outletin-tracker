@@ -33,6 +33,10 @@ def send_push(subscription_id: int, endpoint: str, p256dh: str, auth: str, paylo
             vapid_claims={
                 "sub": settings.VAPID_SUBJECT
             },
+            headers={
+                "Urgency": "high",
+                "TTL": "3600"
+            },
             timeout=10
         )
         
@@ -88,6 +92,38 @@ def _get_matching_subscriptions(product_code: str) -> List[dict]:
         return []
     finally:
         conn.close()
+
+def _get_all_subscriptions() -> List[dict]:
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.id, s.endpoint, s.p256dh, s.auth, 
+                   s.notify_price_drops, s.notify_new_listings, s.notify_back_in_stock,
+                   s.notify_watchlist_only, s.min_drop_percent
+            FROM push_subscriptions s
+        """)
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        _log(f"[Push] Error querying all subscriptions: {e}")
+        return []
+    finally:
+        conn.close()
+
+def _get_watchlist_for_sub(subscription_id: int) -> List[str]:
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT product_code FROM subscription_watchlist WHERE subscription_id = ?", (subscription_id,))
+        rows = cursor.fetchall()
+        return [r[0] for r in rows]
+    except Exception as e:
+        _log(f"[Push] Error querying watchlist for subscription {subscription_id}: {e}")
+        return []
+    finally:
+        conn.close()
+
 
 def notify_new_listing(product: dict) -> None:
     if not settings.PUSH_ENABLED:
@@ -177,3 +213,71 @@ def notify_price_drop(product: dict, old_price: float, new_price: float) -> None
             continue
             
         send_push(sub["id"], sub["endpoint"], sub["p256dh"], sub["auth"], payload)
+
+def notify_batch(products: List[dict], event_type: str) -> None:
+    if not settings.PUSH_ENABLED or not products:
+        return
+        
+    count = len(products)
+    subs = _get_all_subscriptions()
+    
+    for sub in subs:
+        # Check preferences
+        if event_type == "new_listing" and sub["notify_new_listings"] == 0:
+            continue
+        if event_type == "back_in_stock" and sub["notify_back_in_stock"] == 0:
+            continue
+            
+        # Filter products based on watchlist if notify_watchlist_only is set
+        matching_products = products
+        if sub["notify_watchlist_only"] == 1:
+            watchlist = _get_watchlist_for_sub(sub["id"])
+            matching_products = [p for p in products if p.get("productCode") in watchlist]
+            if not matching_products:
+                continue
+        
+        match_count = len(matching_products)
+        if match_count < 5:
+            for p in matching_products:
+                code = p.get("productCode", "?")
+                name = p.get("productName", "Unknown Laptop")
+                price = p.get("finalPrice", "N/A")
+                saving = p.get("savePercent", 0)
+                if event_type == "new_listing":
+                    payload = {
+                        "event_type": "new_listing",
+                        "title": "New Laptop Listed",
+                        "body": f"{name} is now available for {price} INR (-{saving}%)",
+                        "product_code": code,
+                        "price": price,
+                        "save_percent": saving
+                    }
+                else:
+                    payload = {
+                        "event_type": "back_in_stock",
+                        "title": "Laptop Back in Stock",
+                        "body": f"{name} is back! Price: {price} INR (-{saving}%)",
+                        "product_code": code,
+                        "price": price,
+                        "save_percent": saving
+                    }
+                send_push(sub["id"], sub["endpoint"], sub["p256dh"], sub["auth"], payload)
+        else:
+            # Send batch notification
+            if event_type == "new_listing":
+                title = f"{match_count} Laptops Listed"
+                body = f"{match_count} laptops added to stock"
+            else:
+                title = f"{match_count} Laptops Back in Stock"
+                body = f"{match_count} laptops added to stock"
+                
+            payload = {
+                "event_type": f"{event_type}_batch",
+                "title": title,
+                "body": body,
+                "product_code": "",  # Redirects to browse
+                "count": match_count
+            }
+            send_push(sub["id"], sub["endpoint"], sub["p256dh"], sub["auth"], payload)
+
+

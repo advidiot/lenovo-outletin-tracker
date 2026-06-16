@@ -39,5 +39,7 @@ data/
 
 # Local test scripts (ignored)
 backend/scripts/local/
+local_tests/
 
-
+# Runbook (ignored)
+chat_restoration_runbook.md
