@@ -1,13 +1,8 @@
 .dashboard-layout {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
+  flex: 1;
   overflow: hidden;
-  transition: height var(--transition-md);
-}
-
-body.navbar-hidden .dashboard-layout {
-  height: 100vh;
 }
 
 /* Toolbar */
