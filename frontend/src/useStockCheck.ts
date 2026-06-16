@@ -40,12 +40,12 @@ export function useStockCheck() {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
+        body: new URLSearchParams({
           productCode: productCode,
-          qty: 1,
-        }),
+          qty: '1',
+        }).toString(),
       });
 
       if (!addRes.ok) {
