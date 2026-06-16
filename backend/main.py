@@ -47,6 +47,8 @@ def trigger_manual_scrape(is_first_run: bool = False) -> dict:
             return {"success": False, "error": "Failed to retrieve products from Lenovo API."}
         
         products = verify_and_enrich(products)
+        if products is None:
+            return {"success": False, "error": "Compare API unavailable. Cycle aborted (fail-closed)."}
         process_scanned_products(products, is_first_run=is_first_run, partial_scan=partial_scan)
         
         # Count stats
@@ -193,34 +195,38 @@ def run_scraper_loop(args):
                 products, partial_scan = get_all_active_products()
                 if products is not None:
                     products = verify_and_enrich(products)
-                    new_listings, back_in_stock = process_scanned_products(
-                        products, 
-                        is_first_run=is_first_run or args.silent, 
-                        partial_scan=partial_scan
-                    )
+                    if products is None:
+                        _log(f"[Cycle {cycle}] Compare API unavailable. Skipping cycle (fail-closed).")
+                    else:
+                        new_listings, back_in_stock = process_scanned_products(
+                            products,
+                            is_first_run=is_first_run or args.silent,
+                            partial_scan=partial_scan
+                        )
 
-                    # Dispatch Telegram + Push notifications
-                    dispatch_all_notifications(new_listings, back_in_stock, is_first_run or args.silent, args.silent)
+                        # Dispatch Telegram + Push notifications
+                        dispatch_all_notifications(new_listings, back_in_stock, is_first_run or args.silent, args.silent)
 
-                    conn = get_db_connection()
-                    try:
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT COUNT(*) FROM products WHERE active = 1")
-                        active_count = cursor.fetchone()[0]
-                        cursor.execute("SELECT COUNT(*) FROM products WHERE active = 0")
-                        removed_count = cursor.fetchone()[0]
-                    finally:
-                        conn.close()
-                    _log(f"[Cycle {cycle}] Scan complete. Active: {active_count} | Removed: {removed_count} | Scanned: {len(products)}")
-                    
-                    if is_first_run:
-                        _log(f"Initial scan complete. Database seeded with {len(products)} products.")
-                        if not args.silent:
-                            send_startup_alert(len(products))
-                            send_telegram_startup_alert(len(products))
-                        is_first_run = False
+                        conn = get_db_connection()
+                        try:
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT COUNT(*) FROM products WHERE active = 1")
+                            active_count = cursor.fetchone()[0]
+                            cursor.execute("SELECT COUNT(*) FROM products WHERE active = 0")
+                            removed_count = cursor.fetchone()[0]
+                        finally:
+                            conn.close()
+                        _log(f"[Cycle {cycle}] Scan complete. Active: {active_count} | Removed: {removed_count} | Scanned: {len(products)}")
+
+                        if is_first_run:
+                            _log(f"Initial scan complete. Database seeded with {len(products)} products.")
+                            if not args.silent:
+                                send_startup_alert(len(products))
+                                send_telegram_startup_alert(len(products))
+                            is_first_run = False
                 else:
                     _log(f"[Cycle {cycle}] Failed to retrieve products. Retrying in {settings.POLL_INTERVAL}s…")
+
         except Exception as e:
             _log(f"[Cycle {cycle}] Unexpected error: {e}")
 
@@ -325,6 +331,9 @@ def main() -> None:
                 sys.exit(1)
 
             products = verify_and_enrich(products)
+            if products is None:
+                _log("Compare API unavailable. Aborting single scan (fail-closed).")
+                sys.exit(1)
             new_listings, back_in_stock = process_scanned_products(
                 products, 
                 is_first_run=is_first_run or args.silent, 

@@ -54,6 +54,13 @@ def _insert_price_history(cursor, product_code: str, timestamp: str, price: floa
         VALUES (?, ?, ?, ?, ?)
     """, (product_code, timestamp, price, save_percent, price_delta))
 
+def _insert_stock_event(cursor, product_code: str, event_type: str, timestamp: str, price: float) -> None:
+    """Helper to insert a stock event into stock_history."""
+    cursor.execute("""
+        INSERT INTO stock_history (product_code, event_type, timestamp, price)
+        VALUES (?, ?, ?, ?)
+    """, (product_code, event_type, timestamp, price))
+
 def process_scanned_products(products: list[dict], is_first_run: bool, partial_scan: bool = False) -> tuple[list[dict], list[dict]]:
     """Compare freshly-scanned product list against database and process updates."""
     conn = get_db_connection()
@@ -63,6 +70,7 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
         cursor = conn.cursor()
 
         now = current_time()
+        fmt = "%Y-%m-%d %H:%M:%S"
         scanned_codes: set[str] = set()
 
         added_queue: list[dict] = []
@@ -108,25 +116,31 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                 p.get("media", {}).get("thumbnail", {}).get("imageAddress") or None
             )
 
-            cursor.execute("SELECT current_price, active FROM products WHERE product_code = ?", (code,))
+            cursor.execute("""
+                SELECT current_price, active, stability_count, pending_state, pending_removal_since
+                FROM products WHERE product_code = ?
+            """, (code,))
             row = cursor.fetchone()
 
             # Recalculate save_percent dynamically to avoid stale or missing value
             calculated_save_percent = round((1.0 - current_price / original_price) * 100, 2) if original_price > 0 else save_percent
 
             if row is None:
+                # --- Brand New SKU: instant notification, bypass stability check ---
                 _log(f"NEW PRODUCT DETECTED: {code} - {name}")
                 cursor.execute("""
                     INSERT INTO products (
                         product_code, product_name, condition, first_seen, last_seen, removed_at,
                         original_price, current_price, save_percent, active,
-                        specs, rating_star, comment_count, thumbnail_url, full_specs
+                        specs, rating_star, comment_count, thumbnail_url, full_specs,
+                        stability_count, pending_state, pending_removal_since
                     )
-                    VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, 1, ?, ?, ?, ?, NULL)
+                    VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, 1, ?, ?, ?, ?, NULL, 0, NULL, NULL)
                 """, (code, name, condition, now, now, original_price, current_price, calculated_save_percent,
                       specs_json, rating_star, comment_count, thumbnail_url))
-                
+
                 _insert_price_history(cursor, code, now, current_price, calculated_save_percent)
+                _insert_stock_event(cursor, code, "added", now, current_price)
 
                 if not is_first_run:
                     new_listings.append(p)
@@ -134,22 +148,64 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
             else:
                 db_price = row["current_price"]
                 was_active = row["active"]
+                stability_count = row["stability_count"] or 0
+                pending_state = row["pending_state"]
+                pending_removal_since = row["pending_removal_since"]
 
+                # Product is visible in this scan — always update real-time fields.
+                # Also cancel any pending removal notification (flap recovery).
                 cursor.execute("""
                     UPDATE products
-                    SET last_seen = ?, active = 1, removed_at = NULL, product_name = ?, original_price = ?,
+                    SET last_seen = ?, active = 1, removed_at = NULL,
+                        pending_removal_since = NULL,
+                        product_name = ?, original_price = ?,
                         save_percent = ?, specs = ?, rating_star = ?, comment_count = ?, thumbnail_url = ?
                     WHERE product_code = ?
                 """, (now, name, original_price, calculated_save_percent, specs_json, rating_star, comment_count, thumbnail_url, code))
 
-                if was_active == 0:
-                    _log(f"PRODUCT BACK IN STOCK: {code} - {name}")
-                    _insert_price_history(cursor, code, now, current_price, calculated_save_percent)
-                    if not is_first_run:
-                        back_in_stock.append(p)
-                        added_queue.append(p)
+                # --- Restock / stability logic (gates notification only, not active) ---
+                if was_active == 0 or pending_state == 'back_in_stock':
+                    if pending_removal_since is not None:
+                        # Product was in a removal debounce window (gone < 10 min). FLAP RECOVERY.
+                        # pending_removal_since already cleared by the UPDATE above.
+                        # Reset any stale stability state; no notification.
+                        cursor.execute("""
+                            UPDATE products SET stability_count = 0, pending_state = NULL
+                            WHERE product_code = ?
+                        """, (code,))
+                        _log(f"FLAP RECOVERY: {code} - {name} (reappeared before removal notification)")
 
-                # Float tolerance price comparison to avoid precision noise
+                    elif pending_state != 'back_in_stock':
+                        # First cycle of a genuine restock — start stability counter.
+                        cursor.execute("""
+                            UPDATE products SET pending_state = 'back_in_stock', stability_count = 1
+                            WHERE product_code = ?
+                        """, (code,))
+                        _log(f"RESTOCK PENDING (1/{settings.STABILITY_THRESHOLD}): {code} - {name}")
+
+                    else:
+                        # Subsequent stability cycle — increment counter.
+                        new_count = stability_count + 1
+                        if new_count >= settings.STABILITY_THRESHOLD:
+                            # Confirmed restock — clear pending state and notify.
+                            cursor.execute("""
+                                UPDATE products SET stability_count = 0, pending_state = NULL
+                                WHERE product_code = ?
+                            """, (code,))
+                            _insert_price_history(cursor, code, now, current_price, calculated_save_percent)
+                            _insert_stock_event(cursor, code, "back_in_stock", now, current_price)
+                            _log(f"PRODUCT BACK IN STOCK (confirmed after {new_count} cycles): {code} - {name}")
+                            if not is_first_run:
+                                back_in_stock.append(p)
+                                added_queue.append(p)
+                        else:
+                            cursor.execute("""
+                                UPDATE products SET stability_count = ?
+                                WHERE product_code = ?
+                            """, (new_count, code))
+                            _log(f"RESTOCK PENDING ({new_count}/{settings.STABILITY_THRESHOLD}): {code} - {name}")
+
+                # --- Price change detection ---
                 if abs(current_price - db_price) > 0.01:
                     _log(f"PRICE CHANGE for {code}: {db_price} -> {current_price} INR")
                     cursor.execute(
@@ -172,33 +228,62 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                             dispatch_discord_alerts([p], "price_hike", old_price=db_price)
                         time.sleep(1)
 
-        # --- Detect removed products ---
+        # --- Detect removed products (real-time: set active=0 immediately) ---
         if not partial_scan:
-            cursor.execute(
-                "SELECT product_code, product_name, condition, current_price, save_percent, first_seen FROM products WHERE active = 1"
-            )
+            cursor.execute("""
+                SELECT product_code, product_name, condition, current_price, save_percent,
+                       first_seen, pending_removal_since
+                FROM products WHERE active = 1
+            """)
             active_rows = cursor.fetchall()
             for row in active_rows:
                 active_code = row["product_code"]
                 if active_code not in scanned_codes:
                     _log(f"PRODUCT REMOVED (SOLD OUT): {active_code} - {row['product_name']}")
-                    cursor.execute(
-                        "UPDATE products SET active = 0, removed_at = ? WHERE product_code = ?",
-                        (now, active_code),
-                    )
+                    # Set active=0 immediately (real-time frontend truth).
+                    # Use COALESCE to preserve existing pending_removal_since if already set
+                    # (protects against double-timestamping during a multi-cycle oscillation).
+                    # Also reset any in-progress stability counter (product gone mid-window).
+                    cursor.execute("""
+                        UPDATE products
+                        SET active = 0, removed_at = ?,
+                            stability_count = 0, pending_state = NULL,
+                            pending_removal_since = COALESCE(pending_removal_since, ?)
+                        WHERE product_code = ?
+                    """, (now, now, active_code))
+                    _insert_stock_event(cursor, active_code, "removed", now, row["current_price"])
 
-                    if not is_first_run:
-                        duration = _compute_listing_duration(row["first_seen"], now)
-                        dummy_product = {
-                            "productCode": active_code,
-                            "productName": row["product_name"],
-                            "productCondition": row["condition"],
-                            "finalPrice": row["current_price"],
-                            "savePercent": row["save_percent"],
-                            "url": f"/p/{active_code}",
-                            "_listing_duration": duration,
-                        }
-                        removed_queue.append(dummy_product)
+        # --- Matured removal notifications (fire after 10-minute debounce) ---
+        cursor.execute("""
+            SELECT product_code, product_name, condition, current_price, save_percent,
+                   first_seen, pending_removal_since
+            FROM products
+            WHERE pending_removal_since IS NOT NULL AND active = 0
+        """)
+        pending_rows = cursor.fetchall()
+        now_ts = time.mktime(time.strptime(now, fmt))
+        for row in pending_rows:
+            pending_ts = time.mktime(time.strptime(row["pending_removal_since"], fmt))
+            elapsed = now_ts - pending_ts
+            if elapsed >= settings.REMOVAL_DEBOUNCE_SECONDS:
+                cursor.execute("""
+                    UPDATE products SET pending_removal_since = NULL
+                    WHERE product_code = ?
+                """, (row["product_code"],))
+                _log(f"REMOVAL CONFIRMED ({int(elapsed)}s elapsed): {row['product_code']} - {row['product_name']}")
+
+                if not is_first_run:
+                    duration = _compute_listing_duration(row["first_seen"], now)
+                    dummy_product = {
+                        "productCode": row["product_code"],
+                        "productName": row["product_name"],
+                        "productCondition": row["condition"],
+                        "finalPrice": row["current_price"],
+                        "savePercent": row["save_percent"],
+                        "url": f"/p/{row['product_code']}",
+                        "_listing_duration": duration,
+                    }
+                    removed_queue.append(dummy_product)
 
         conn.commit()
     finally:
@@ -215,6 +300,7 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                 dispatch_watchlist_alerts(p, "added")
 
     return new_listings, back_in_stock
+
 
 def _dispatch_notifications(queue: list[dict], ntfy_type: str, topic: str) -> None:
     if not queue:

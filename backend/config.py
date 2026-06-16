@@ -68,6 +68,10 @@ class Settings:
     # Scraper Robustness
     MAX_FAILED_PAGES: int = 2
 
+    # Stock Oscillation Filters
+    STABILITY_THRESHOLD: int = 2          # Consecutive cycles before a restock notification fires
+    REMOVAL_DEBOUNCE_SECONDS: int = 600   # Seconds before a removal notification fires (10 min)
+
     @classmethod
     def load(cls) -> "Settings":
         # Check PORT
@@ -185,6 +189,16 @@ class Settings:
         except ValueError:
             max_failed_pages = 2
 
+        try:
+            stability_threshold = int(os.environ.get("STABILITY_THRESHOLD", "2"))
+        except ValueError:
+            stability_threshold = 2
+
+        try:
+            removal_debounce_seconds = int(os.environ.get("REMOVAL_DEBOUNCE_SECONDS", "600"))
+        except ValueError:
+            removal_debounce_seconds = 600
+
         return cls(
             PORT=port,
             DIRECTORY=directory,
@@ -214,6 +228,8 @@ class Settings:
             DISCORD_INVITE_URL=discord_invite_url,
             TELEGRAM_CHANNEL_URL=telegram_channel_url,
             MAX_FAILED_PAGES=max_failed_pages,
+            STABILITY_THRESHOLD=stability_threshold,
+            REMOVAL_DEBOUNCE_SECONDS=removal_debounce_seconds,
         )
 
 # Load global settings instance

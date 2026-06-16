@@ -8,7 +8,7 @@ import threading
 from typing import Any
 from backend.config import settings
 from backend.logging_config import _log
-from backend.scraper.enrichment import get_laptops_data, get_price_history
+from backend.scraper.enrichment import get_laptops_data, get_price_history, get_stock_history
 from backend.db.connection import get_db_connection
 
 class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
@@ -91,6 +91,19 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
             product_code = codes[0]
             try:
                 data = get_price_history(product_code)
+                self.send_json(data)
+            except Exception as e:
+                self.send_error_json(500, f"Database error: {str(e)}")
+            return
+
+        elif path == "/api/stock_history":
+            codes = query_params.get("code")
+            if not codes:
+                self.send_error_json(400, "Missing required query parameter: code")
+                return
+            product_code = codes[0]
+            try:
+                data = get_stock_history(product_code)
                 self.send_json(data)
             except Exception as e:
                 self.send_error_json(500, f"Database error: {str(e)}")

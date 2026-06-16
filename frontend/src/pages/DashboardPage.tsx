@@ -475,6 +475,22 @@ export const DashboardPage = ({
     return sortLaptops(filtered, sortBy);
   }, [laptopData, filters, searchQuery, showWatchlistOnly, watchlist, sortBy]);
 
+  const statsData = useMemo(() => {
+    if (filters.showUnavailable) {
+      return laptopData;
+    } else {
+      return laptopData.filter((l) => l["available"]);
+    }
+  }, [laptopData, filters.showUnavailable]);
+
+  const baseTotalCount = useMemo(() => {
+    if (filters.showUnavailable) {
+      return laptopData.length;
+    } else {
+      return laptopData.filter((l) => l["available"]).length;
+    }
+  }, [laptopData, filters.showUnavailable]);
+
   const gpuModelOptions = useMemo(() => {
     const rawGpus = laptopData
       .map((l) => l["graphic-card"] as string)
@@ -586,9 +602,10 @@ export const DashboardPage = ({
     <div className="dashboard-layout">
       {/* Stats strip */}
       <DashboardStats
-        data={laptopData}
+        data={statsData}
         lastModified={lastModified}
         onBestDealClick={handleBestDealClick}
+        showUnavailable={filters.showUnavailable}
       />
 
       {/* Toolbar */}
@@ -605,10 +622,10 @@ export const DashboardPage = ({
           <span className="toolbar-count">
             {filteredData.length.toLocaleString()} laptop
             {filteredData.length !== 1 ? "s" : ""}
-            {filteredData.length !== laptopData.length && (
+            {filteredData.length !== baseTotalCount && (
               <span className="toolbar-count-total">
                 {" "}
-                of {laptopData.length}
+                of {baseTotalCount}
               </span>
             )}
           </span>
@@ -689,6 +706,7 @@ export const DashboardPage = ({
           onMobileClose={() => setMobileFilterOpen(false)}
           facetGroups={facetGroups}
           gpuModelOptions={gpuModelOptions}
+          laptops={statsData}
         />
 
         <div className="dashboard-grid-area">

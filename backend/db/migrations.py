@@ -316,5 +316,44 @@ def run_migrations() -> None:
             _log("Migration 7 applied successfully.")
             current_version = 7
             
+        if current_version < 8:
+            _log("Applying migration 8: Create stock_history table and index.")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_code TEXT,
+                    event_type TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    price REAL,
+                    FOREIGN KEY(product_code) REFERENCES products(product_code)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_history_code ON stock_history(product_code)")
+            cursor.execute("UPDATE schema_version SET version = 8")
+            conn.commit()
+            _log("Migration 8 applied successfully.")
+            current_version = 8
+
+        if current_version < 9:
+            _log("Applying migration 9: Add oscillation-filter columns to products.")
+            cursor.execute("PRAGMA table_info(products)")
+            prod_columns = [row[1] for row in cursor.fetchall()]
+
+            new_cols = [
+                ("stability_count", "INTEGER DEFAULT 0"),
+                ("pending_state", "TEXT DEFAULT NULL"),
+                ("pending_removal_since", "TEXT DEFAULT NULL"),
+            ]
+            for col_name, col_def in new_cols:
+                if col_name not in prod_columns:
+                    _log(f"Adding column '{col_name}' to products table.")
+                    cursor.execute(f"ALTER TABLE products ADD COLUMN {col_name} {col_def}")
+
+            cursor.execute("UPDATE schema_version SET version = 9")
+            conn.commit()
+            _log("Migration 9 applied successfully.")
+            current_version = 9
+
     finally:
         conn.close()
+

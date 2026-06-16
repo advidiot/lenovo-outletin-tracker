@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import "./FilterSidebar.css";
-import { FacetGroup } from "../data";
+import { FacetGroup, LaptopData } from "../data";
 
 export interface FilterState {
   priceMin: number;
@@ -61,14 +61,8 @@ interface FilterSidebarProps {
   onMobileClose?: () => void;
   facetGroups: FacetGroup[];
   gpuModelOptions: string[];
+  laptops: LaptopData[];
 }
-
-const SCREEN_SIZES = ["13\"", "14\"", "15.6\"", "16\""];
-const RAM_OPTIONS = ["8GB", "16GB", "32GB", "64GB"];
-const CONDITIONS = ["New", "Refurbished", "Certified Refurbished"];
-const GPU_TYPES = ["Integrated", "Dedicated"];
-const STORAGE_TYPES = ["SSD (NVMe)", "SSD (SATA)", "SSD", "HDD", "eMMC", "Multi"];
-const DDR_GENS = ["DDR4", "DDR5", "LPDDR4", "LPDDR4X", "LPDDR5", "LPDDR5X"];
 
 const ChevronIcon = ({ open }: { open: boolean }) => (
   <svg
@@ -137,8 +131,85 @@ export const FilterSidebar = ({
   onMobileClose,
   facetGroups,
   gpuModelOptions,
+  laptops,
 }: FilterSidebarProps) => {
   const count = activeFilterCount(filters);
+
+  const SCREEN_SIZES = useMemo(() => {
+    const set = new Set<string>();
+    laptops.forEach((l) => {
+      const val = l["screen-size"];
+      if (val != null && val !== "") {
+        set.add(`${val}"`);
+      }
+    });
+    filters.screenSizes.forEach((s) => set.add(s));
+    return Array.from(set).sort((a, b) => parseFloat(a) - parseFloat(b));
+  }, [laptops, filters.screenSizes]);
+
+  const RAM_OPTIONS = useMemo(() => {
+    const set = new Set<string>();
+    laptops.forEach((l) => {
+      const val = l["memory-size"];
+      if (val) {
+        set.add(String(val).toUpperCase());
+      }
+    });
+    filters.ramSizes.forEach((r) => set.add(r));
+    return Array.from(set).sort((a, b) => {
+      const aNum = parseInt(a) || 0;
+      const bNum = parseInt(b) || 0;
+      return aNum - bNum;
+    });
+  }, [laptops, filters.ramSizes]);
+
+  const CONDITIONS = useMemo(() => {
+    const set = new Set<string>();
+    laptops.forEach((l) => {
+      const val = l["product-condition"];
+      if (val) {
+        set.add(String(val));
+      }
+    });
+    filters.conditions.forEach((c) => set.add(c));
+    return Array.from(set).sort();
+  }, [laptops, filters.conditions]);
+
+  const GPU_TYPES = useMemo(() => {
+    const set = new Set<string>();
+    laptops.forEach((l) => {
+      const val = l["gpu-type"];
+      if (val) {
+        set.add(String(val));
+      }
+    });
+    filters.gpuTypes.forEach((g) => set.add(g));
+    return Array.from(set).sort();
+  }, [laptops, filters.gpuTypes]);
+
+  const STORAGE_TYPES = useMemo(() => {
+    const set = new Set<string>();
+    laptops.forEach((l) => {
+      const val = l["storage-type"];
+      if (val) {
+        set.add(String(val));
+      }
+    });
+    filters.storageTypes.forEach((s) => set.add(s));
+    return Array.from(set).sort();
+  }, [laptops, filters.storageTypes]);
+
+  const DDR_GENS = useMemo(() => {
+    const set = new Set<string>();
+    laptops.forEach((l) => {
+      const val = l["ddr-gen"];
+      if (val) {
+        set.add(String(val));
+      }
+    });
+    filters.ddrGens.forEach((d) => set.add(d));
+    return Array.from(set).sort();
+  }, [laptops, filters.ddrGens]);
 
   const cpuOptions = useMemo(() => {
     const procFacet = facetGroups.find((g) => g.facetId === "4374");

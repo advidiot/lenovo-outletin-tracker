@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTheme } from "./ThemeProvider";
 import "./Navbar.css";
@@ -62,8 +62,28 @@ export const Navbar = ({ watchlistCount, onSearch, searchQuery }: NavbarProps) =
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
+  const [navClass, setNavClass] = useState("navbar");
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY.current && currentScrollY > 80) {
+        // Scrolling down
+        setNavClass("navbar navbar-hidden");
+      } else {
+        // Scrolling up
+        setNavClass("navbar");
+      }
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
-    <nav className="navbar">
+    <nav className={navClass}>
       <div className="navbar-inner">
         {/* Left: Logo */}
         <Link to="/browse" className="navbar-brand" onClick={() => setMobileMenuOpen(false)}>

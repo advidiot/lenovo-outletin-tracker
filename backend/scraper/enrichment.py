@@ -440,6 +440,12 @@ def get_laptops_data() -> List[Dict[str, Any]]:
                 "full_specs": full_specs,
             }
             laptops.append(laptop)
+
+        # Strip internal scraper metadata — these columns are not for the frontend
+        _INTERNAL_COLS = ("stability_count", "pending_state", "pending_removal_since")
+        for item in laptops:
+            for col in _INTERNAL_COLS:
+                item.pop(col, None)
             
         return laptops
 
@@ -468,9 +474,10 @@ def clean_ghost_listings() -> List[str]:
     """Verify inventoryStatus of active laptops and mark out-of-stock items as inactive."""
     with db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT product_code FROM products WHERE active = 1")
+        cursor.execute("SELECT product_code, current_price FROM products WHERE active = 1")
         rows = cursor.fetchall()
-        codes = [row[0] for row in rows]
+        codes = [row['product_code'] for row in rows]
+        prices = {row['product_code']: row['current_price'] for row in rows}
         
         if not codes:
             return []
@@ -498,6 +505,10 @@ def clean_ghost_listings() -> List[str]:
                         """, (now_str, prod_code))
                         if cursor.rowcount > 0:
                             cleaned_codes.append(prod_code)
+                            cursor.execute("""
+                                INSERT INTO stock_history (product_code, event_type, timestamp, price)
+                                VALUES (?, 'removed', ?, ?)
+                            """, (prod_code, now_str, prices.get(prod_code)))
                             _log(f"[Ghost Cleanup] Product {prod_code} is out of stock. Marked active=0.")
             else:
                 _log(f"Ghost cleanup API error: HTTP {response.status_code}")
@@ -505,6 +516,23 @@ def clean_ghost_listings() -> List[str]:
             _log(f"Error executing ghost cleanup API query: {e}")
 
         return cleaned_codes
+
+def get_stock_history(product_code: str) -> List[Dict[str, Any]]:
+    """Fetch stock history data for a product code."""
+    if not settings.DB_FILE.exists():
+        return []
+        
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT timestamp, event_type, price
+            FROM stock_history
+            WHERE product_code = ?
+            ORDER BY timestamp ASC
+        """, (product_code,))
+        
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
 
 def enrich_specs(codes: Optional[List[str]] = None) -> Dict[str, Any]:
     """Fetch full specs from the Lenovo Compare API for active products and cache them in DB.
@@ -630,8 +658,8 @@ def verify_and_enrich(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         response = _request("GET", url, headers=settings.COMPARE_HEADERS, timeout=30)
 
         if response.status_code != 200:
-            _log(f"[Verify+Enrich] Compare API error HTTP {response.status_code}. Skipping ghost filter and enrichment this cycle.")
-            return products
+            _log(f"[Verify+Enrich] Compare API error HTTP {response.status_code}. Aborting cycle — fail-closed.")
+            return None
 
         data = response.json()
         categories = data.get("data", [])
@@ -682,8 +710,8 @@ def verify_and_enrich(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         _log(f"[Verify+Enrich] Done. Ghosts filtered: {ghost_count} | Specs enriched: {enriched_count}/{len(missing_specs_codes)}")
 
     except Exception as e:
-        _log(f"[Verify+Enrich] Request error: {e}. Skipping ghost filter and enrichment this cycle.")
-        return products
+        _log(f"[Verify+Enrich] Request error: {e}. Aborting cycle — fail-closed.")
+        return None
 
     # Return products with ghosts removed
     return [p for p in products if p.get("productCode") not in unavailable_codes]
