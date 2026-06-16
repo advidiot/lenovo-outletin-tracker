@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTheme } from "./ThemeProvider";
 import "./Navbar.css";
@@ -62,45 +62,9 @@ export const Navbar = ({ watchlistCount, onSearch, searchQuery }: NavbarProps) =
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
-  const [navClass, setNavClass] = useState("navbar");
-  const lastScrollY = useRef(0);
-
-  useEffect(() => {
-    const handleScroll = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (!target) return;
-
-      // Ignore scroll inside filter sidebar
-      if (target.closest && (target.closest(".filter-sidebar") || target.closest(".sidebar-content"))) {
-        return;
-      }
-
-      const currentScrollY =
-        target === (document as any) || (target as any) === window
-          ? window.scrollY
-          : target.scrollTop || 0;
-
-      if (currentScrollY > lastScrollY.current && currentScrollY > 80) {
-        // Scrolling down
-        setNavClass("navbar navbar-hidden");
-        document.body.classList.add("navbar-hidden");
-      } else {
-        // Scrolling up
-        setNavClass("navbar");
-        document.body.classList.remove("navbar-hidden");
-      }
-      lastScrollY.current = currentScrollY;
-    };
-
-    window.addEventListener("scroll", handleScroll, true);
-    return () => {
-      window.removeEventListener("scroll", handleScroll, true);
-      document.body.classList.remove("navbar-hidden");
-    };
-  }, []);
-
   return (
-    <nav className={navClass}>
+    <nav className="navbar">
+
       <div className="navbar-inner">
         {/* Left: Logo */}
         <Link to="/browse" className="navbar-brand" onClick={() => setMobileMenuOpen(false)}>

@@ -5,17 +5,7 @@
   background: var(--navbar-bg);
   border-bottom: 1px solid var(--navbar-border);
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  transition: background var(--transition-md), border-color var(--transition-md), transform var(--transition-md), margin-top var(--transition-md);
-}
-
-.navbar-hidden {
-  transform: translateY(-100%);
-  margin-top: -56px;
-}
-
-body.navbar-hidden .navbar {
-  transform: translateY(-100%);
-  margin-top: -56px;
+  transition: background var(--transition-md), border-color var(--transition-md);
 }
 
 .navbar-inner {
