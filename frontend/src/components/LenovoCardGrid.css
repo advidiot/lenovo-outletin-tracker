@@ -181,6 +181,67 @@
   gap: 2px;
 }
 
+.lenovo-card-pricing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+}
+
+.lenovo-card-stock-check {
+  display: flex;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.card-stock-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  transition: all var(--transition-sm);
+}
+
+.card-stock-btn:hover {
+  background: var(--accent-teal);
+  color: var(--bg-primary);
+  border-color: var(--accent-teal);
+}
+
+.card-stock-loading {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.card-stock-success {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+.card-stock-error-link {
+  color: var(--accent-amber);
+  text-decoration: underline;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.card-stock-error-link:hover {
+  color: var(--accent-amber-hover, #d97706);
+}
+
+.card-stock-error {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
 .price-primary {
   display: flex;
   align-items: baseline;

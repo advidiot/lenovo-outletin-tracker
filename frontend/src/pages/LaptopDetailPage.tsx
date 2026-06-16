@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -94,6 +94,8 @@ interface LaptopDetailPageProps {
   toggleWatch: (code: string) => void;
   compareList: LaptopData[];
   toggleCompare: (laptop: LaptopData) => void;
+  checkStock: (productCode: string) => Promise<void>;
+  stockResults: Record<string, import("../useStockCheck").StockResult>;
 }
 
 export const LaptopDetailPage = ({
@@ -102,6 +104,8 @@ export const LaptopDetailPage = ({
   toggleWatch,
   compareList,
   toggleCompare,
+  checkStock,
+  stockResults,
 }: LaptopDetailPageProps) => {
   const { productNumber } = useParams<{ productNumber: string }>();
   const navigate = useNavigate();
@@ -110,6 +114,9 @@ export const LaptopDetailPage = ({
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  
+  const [stockHistory, setStockHistory] = useState<{ stock: number; checked_at: string }[]>([]);
+  
   const [imgError, setImgError] = useState(false);
 
   const laptop = allLaptops.find(
@@ -136,6 +143,31 @@ export const LaptopDetailPage = ({
         setHistoryLoading(false);
       });
   }, [code]);
+
+  const loadStockHistory = useCallback(() => {
+    if (!code) return;
+    fetch(`/api/stock_history?code=${code}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to fetch");
+        return r.json();
+      })
+      .then((d) => { setStockHistory(d); })
+      .catch(() => {});
+  }, [code]);
+
+  useEffect(() => {
+    loadStockHistory();
+  }, [code, loadStockHistory]);
+
+  const result = stockResults[code];
+  const isRecorded = result?.recorded;
+
+  // Reload stock history when a new stock check logs a data point successfully
+  useEffect(() => {
+    if (isRecorded) {
+      loadStockHistory();
+    }
+  }, [isRecorded, loadStockHistory]);
 
   if (!laptop) {
     return (
@@ -224,6 +256,55 @@ export const LaptopDetailPage = ({
             ) : (
               <button className="btn btn-lg" style={{ opacity: 0.5, cursor: "not-allowed" }} disabled>
                 Sold Out
+              </button>
+            )}
+
+            {/* Check Stock Button / Indicator */}
+            {available ? (
+              <div className="detail-stock-check-container">
+                {(() => {
+                  const state = result?.state || 'idle';
+                  if (state === 'idle') {
+                    return (
+                      <button 
+                        className="btn btn-secondary btn-lg stock-check-button" 
+                        onClick={() => checkStock(code)}
+                      >
+                        📦 Check Stock
+                      </button>
+                    );
+                  }
+                  if (state === 'loading') {
+                    return (
+                      <button className="btn btn-secondary btn-lg stock-check-button" disabled>
+                        <span className="stock-spinner"></span> Checking…
+                      </button>
+                    );
+                  }
+                  if (state === 'success') {
+                    return (
+                      <div className="stock-check-success-msg">
+                        📦 {result.stock === 99 ? '99+' : result.stock} units left
+                      </div>
+                    );
+                  }
+                  if (state === 'no_session') {
+                    return (
+                      <div className="stock-check-error-msg">
+                        ⚠️ <a href="https://www.lenovo.com/in/outletin/en/" target="_blank" rel="noopener noreferrer" className="stock-external-link">Visit lenovo.com first ↗</a>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="stock-check-error-msg">
+                      ⚠️ Could not check — <button className="stock-retry-btn" onClick={() => checkStock(code)}>retry</button>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <button className="btn btn-secondary btn-lg" disabled style={{ opacity: 0.5, cursor: "not-allowed" }}>
+                📦 Check Stock
               </button>
             )}
 
@@ -316,6 +397,72 @@ export const LaptopDetailPage = ({
             </ResponsiveContainer>
           )}
         </div>
+
+        {/* Stock History Chart (conditionally rendered) */}
+        {stockHistory.length >= 2 && (
+          <div className="detail-chart card stock-history-chart-card">
+            <h2 className="detail-section-title">Stock History (Exact units)</h2>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={stockHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="stockGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis
+                  dataKey="checked_at"
+                  tickFormatter={(v) => {
+                    if (!v) return "";
+                    // format YYYY-MM-DD HH:MM:SS to DD/MM HH:MM
+                    try {
+                      const parts = v.split(" ");
+                      const dateParts = parts[0].split("-");
+                      const timeParts = parts[1].split(":");
+                      return `${dateParts[2]}/${dateParts[1]} ${timeParts[0]}:${timeParts[1]}`;
+                    } catch {
+                      return v;
+                    }
+                  }}
+                  tick={{ fontSize: 9, fill: "var(--text-muted)" }}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tickLine={false}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tickFormatter={(v) => String(v)}
+                  tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={30}
+                />
+                <Tooltip 
+                  content={({ active, payload, label }: any) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="chart-tooltip">
+                        <div className="tooltip-date">{label}</div>
+                        <div className="tooltip-price" style={{ color: "var(--accent-indigo, #6366f1)" }}>
+                          {payload[0].value === 99 ? '99+ units' : `${payload[0].value} units`}
+                        </div>
+                      </div>
+                    );
+                  }} 
+                />
+                <Area
+                  type="stepAfter" // Staircase step-down effect
+                  dataKey="stock"
+                  stroke="var(--accent-indigo, #6366f1)"
+                  strokeWidth={2.5}
+                  fill="url(#stockGradient)"
+                  dot={{ fill: "var(--accent-indigo, #6366f1)", r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: "var(--accent-indigo, #6366f1)" }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* Specs */}
         <div className="detail-specs">

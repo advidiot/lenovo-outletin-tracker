@@ -20,6 +20,8 @@ interface DashboardPageProps {
   compareList: LaptopData[];
   toggleCompare: (laptop: LaptopData) => void;
   facetGroups: FacetGroup[];
+  checkStock: (productCode: string) => Promise<void>;
+  stockResults: Record<string, import("../useStockCheck").StockResult>;
 }
 
 function parseWeight(weightStr: string | null): number | null {
@@ -410,6 +412,8 @@ export const DashboardPage = ({
   compareList,
   toggleCompare,
   facetGroups,
+  checkStock,
+  stockResults,
 }: DashboardPageProps) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -701,6 +705,8 @@ export const DashboardPage = ({
                 toggleWatch={handleToggleWatch}
                 compareList={compareList}
                 toggleCompare={handleToggleCompare}
+                checkStock={checkStock}
+                stockResults={stockResults}
               />
             ) : (
               <Grid
@@ -712,6 +718,7 @@ export const DashboardPage = ({
                 toggleCompare={handleToggleCompare}
                 onRowSelected={handleRowSelected}
                 onSortChanged={handleGridSortChanged}
+                context={{ checkStock, stockResults }}
               />
             )}
           </div>
@@ -724,6 +731,8 @@ export const DashboardPage = ({
               toggleWatch={handleToggleWatch}
               compareList={compareList}
               toggleCompare={handleToggleCompare}
+              checkStock={checkStock}
+              stockResults={stockResults}
             />
           </div>
         </div>
