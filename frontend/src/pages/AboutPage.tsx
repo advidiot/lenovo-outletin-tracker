@@ -32,10 +32,6 @@ export const AboutPage = () => (
           laptops side-by-side, and get notified when deals drop.
         </p>
 
-        <p>
-          All data is stored locally in a SQLite database. No external services, no tracking,
-          fully self-hosted.
-        </p>
       </div>
 
       <div className="about-features">
