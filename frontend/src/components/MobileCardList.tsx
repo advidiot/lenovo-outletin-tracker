@@ -8,8 +8,6 @@ interface MobileCardListProps {
   toggleWatch: (code: string) => void;
   compareList: LaptopData[];
   toggleCompare: (laptop: LaptopData) => void;
-  checkStock: (productCode: string) => Promise<void>;
-  stockResults: Record<string, import("../useStockCheck").StockResult>;
 }
 
 const StarIcon = ({ filled }: { filled: boolean }) => (
@@ -28,8 +26,6 @@ export const MobileCardList = ({
   toggleWatch,
   compareList,
   toggleCompare,
-  checkStock,
-  stockResults,
 }: MobileCardListProps) => {
   const navigate = useNavigate();
 
@@ -141,70 +137,23 @@ export const MobileCardList = ({
               className="mobile-card-actions"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Stock check element */}
-              {available ? (
-                <div className="mobile-card-stock-check">
-                  {(() => {
-                    const result = stockResults[code];
-                    if (!result || result.state === 'idle') {
-                      return (
-                        <button 
-                          className="mobile-stock-btn" 
-                          onClick={() => checkStock(code)}
-                        >
-                          Check Stock
-                        </button>
-                      );
-                    }
-                    if (result.state === 'loading') {
-                      return <span className="mobile-stock-loading">Checking…</span>;
-                    }
-                    if (result.state === 'success') {
-                      return (
-                        <span className="mobile-stock-success">
-                          {result.stock === 99 ? '99+' : result.stock} units
-                        </span>
-                      );
-                    }
-                    if (result.state === 'no_session') {
-                      return (
-                        <a 
-                          href="https://www.lenovo.com/in/outletin/en/" 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="mobile-stock-error-link"
-                          title="Visit Lenovo first to activate session cookies."
-                        >
-                          ⚠️ Visit site
-                        </a>
-                      );
-                    }
-                    return <span className="mobile-stock-error">⚠️ Error</span>;
-                  })()}
-                </div>
-              ) : (
-                <span className="mobile-stock-oos">Sold Out</span>
-              )}
-
-              <div className="mobile-card-utility-actions">
-                <button
-                  className={`mobile-action-btn ${isStarred ? "action-starred" : ""}`}
-                  onClick={() => toggleWatch(code)}
-                  title={isStarred ? "Remove from watchlist" : "Add to watchlist"}
-                  aria-label="Toggle watchlist"
-                >
-                  <StarIcon filled={isStarred} />
-                </button>
-                <input
-                  type="checkbox"
-                  checked={isCompared}
-                  disabled={isCompareDisabled}
-                  onChange={() => toggleCompare(laptop)}
-                  className="compare-checkbox"
-                  title="Compare"
-                  aria-label="Add to comparison"
-                />
-              </div>
+              <button
+                className={`mobile-action-btn ${isStarred ? "action-starred" : ""}`}
+                onClick={() => toggleWatch(code)}
+                title={isStarred ? "Remove from watchlist" : "Add to watchlist"}
+                aria-label="Toggle watchlist"
+              >
+                <StarIcon filled={isStarred} />
+              </button>
+              <input
+                type="checkbox"
+                checked={isCompared}
+                disabled={isCompareDisabled}
+                onChange={() => toggleCompare(laptop)}
+                className="compare-checkbox"
+                title="Compare"
+                aria-label="Add to comparison"
+              />
             </div>
           </div>
         );

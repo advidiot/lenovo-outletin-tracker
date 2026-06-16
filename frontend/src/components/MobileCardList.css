@@ -112,77 +112,10 @@
 
 .mobile-card-actions {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.mobile-card-utility-actions {
-  display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-}
-
-.mobile-card-stock-check {
-  display: flex;
-  align-items: center;
-}
-
-.mobile-stock-btn {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
-  font-size: 0.7rem;
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1.1;
-  white-space: nowrap;
-  transition: all var(--transition-sm);
-}
-
-.mobile-stock-btn:hover {
-  background: var(--accent-teal);
-  color: var(--bg-primary);
-  border-color: var(--accent-teal);
-}
-
-.mobile-stock-loading {
-  color: var(--text-muted);
-  font-size: 0.7rem;
-}
-
-.mobile-stock-success {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 0.72rem;
-  white-space: nowrap;
-}
-
-.mobile-stock-error-link {
-  color: var(--accent-amber);
-  text-decoration: underline;
-  font-size: 0.7rem;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.mobile-stock-error-link:hover {
-  color: var(--accent-amber-hover, #d97706);
-}
-
-.mobile-stock-error {
-  color: var(--text-muted);
-  font-size: 0.7rem;
-}
-
-.mobile-stock-oos {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  opacity: 0.5;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .mobile-action-btn {

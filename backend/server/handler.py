@@ -96,31 +96,6 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_error_json(500, f"Database error: {str(e)}")
             return
 
-        elif path == "/api/stock_history":
-            codes = query_params.get("code")
-            if not codes:
-                self.send_error_json(400, "Missing required query parameter: code")
-                return
-            product_code = codes[0]
-            try:
-                conn = get_db_connection()
-                try:
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        SELECT stock, checked_at 
-                        FROM stock_history 
-                        WHERE product_code = ? 
-                        ORDER BY checked_at ASC
-                    """, (product_code,))
-                    rows = cursor.fetchall()
-                    history = [{"stock": row[0] or row["stock"], "checked_at": row[1] or row["checked_at"]} for row in rows]
-                    self.send_json(history)
-                finally:
-                    conn.close()
-            except Exception as e:
-                self.send_error_json(500, f"Database error: {str(e)}")
-            return
-
         elif path == "/api/vapid_public_key":
             self.send_json({"publicKey": settings.VAPID_PUBLIC_KEY or ""})
             return
@@ -397,49 +372,6 @@ class LaptopTrackerHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_error_json(400, "Missing request body")
             except Exception as e:
                 self.send_error_json(500, f"Error testing push: {str(e)}")
-            return
-        elif path == "/api/stock_check":
-            try:
-                content_length = int(self.headers.get("Content-Length", 0))
-                if content_length > 0:
-                    body = self.rfile.read(content_length)
-                    data = json.loads(body.decode("utf-8"))
-                    product_code = data.get("product_code")
-                    stock = data.get("stock")
-                    
-                    if not product_code or stock is None:
-                        self.send_error_json(400, "Missing product_code or stock in request body")
-                        return
-                    
-                    conn = get_db_connection()
-                    try:
-                        cursor = conn.cursor()
-                        # Get last recorded stock level
-                        cursor.execute("""
-                            SELECT stock FROM stock_history 
-                            WHERE product_code = ? 
-                            ORDER BY id DESC LIMIT 1
-                        """, (product_code,))
-                        last_row = cursor.fetchone()
-                        last_stock = last_row[0] if last_row else None
-                        
-                        # Only insert if there was no prior record or stock has changed
-                        if last_stock is None or last_stock != stock:
-                            now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-                            cursor.execute("""
-                                INSERT INTO stock_history (product_code, stock, checked_at)
-                                VALUES (?, ?, ?)
-                            """, (product_code, stock, now_str))
-                            conn.commit()
-                            self.send_json({"recorded": True, "stock": stock, "last_stock": last_stock})
-                        else:
-                            self.send_json({"recorded": False, "stock": stock, "last_stock": last_stock})
-                    finally:
-                        conn.close()
-                else:
-                    self.send_error_json(400, "Missing request body")
-            except Exception as e:
-                self.send_error_json(500, f"Database error: {str(e)}")
             return
 
         self.send_error_json(404, "Endpoint not found")

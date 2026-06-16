@@ -8,8 +8,6 @@ interface LenovoCardGridProps {
   toggleWatch: (code: string) => void;
   compareList: LaptopData[];
   toggleCompare: (laptop: LaptopData) => void;
-  checkStock: (productCode: string) => Promise<void>;
-  stockResults: Record<string, import("../useStockCheck").StockResult>;
 }
 
 const StarIcon = ({ filled }: { filled: boolean }) => (
@@ -33,8 +31,6 @@ export const LenovoCardGrid = ({
   toggleWatch,
   compareList,
   toggleCompare,
-  checkStock,
-  stockResults,
 }: LenovoCardGridProps) => {
   const navigate = useNavigate();
 
@@ -158,78 +154,33 @@ export const LenovoCardGrid = ({
 
             {/* Price & Actions */}
             <div className="lenovo-card-footer" onClick={(e) => e.stopPropagation()}>
-              <div className="lenovo-card-pricing-row">
-                <div className="lenovo-card-pricing">
-                  <div className="price-primary">
-                    <span className="current-price">
-                      ₹{Number(laptop["price"]).toLocaleString("en-IN")}
+              <div className="lenovo-card-pricing">
+                <div className="price-primary">
+                  <span className="current-price">
+                    ₹{Number(laptop["price"]).toLocaleString("en-IN")}
+                  </span>
+                  {Number(laptop["price-delta"] || 0) < -0.01 && (
+                    <span
+                      className="price-drop-indicator"
+                      title={`Price dropped by ₹${Math.abs(Number(laptop["price-delta"])).toLocaleString("en-IN")}`}
+                    >
+                      ↓ ₹{Math.abs(Number(laptop["price-delta"])).toLocaleString("en-IN")}
                     </span>
-                    {Number(laptop["price-delta"] || 0) < -0.01 && (
-                      <span
-                        className="price-drop-indicator"
-                        title={`Price dropped by ₹${Math.abs(Number(laptop["price-delta"])).toLocaleString("en-IN")}`}
-                      >
-                        ↓ ₹{Math.abs(Number(laptop["price-delta"])).toLocaleString("en-IN")}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {(Number(laptop["orig-price"]) > 0 || Number(laptop["percentage-savings"]) > 0) && (
-                    <div className="price-secondary">
-                      {Number(laptop["orig-price"]) > 0 && (
-                        <span className="original-price">
-                          ₹{Number(laptop["orig-price"]).toLocaleString("en-IN")}
-                        </span>
-                      )}
-                      {Number(laptop["percentage-savings"]) > 0 && (
-                        <span className="badge badge-green discount-badge">
-                          {Math.round(Number(laptop["percentage-savings"]))}% off
-                        </span>
-                      )}
-                    </div>
                   )}
                 </div>
-
-                {/* Stock Check section */}
-                {available && (
-                  <div className="lenovo-card-stock-check">
-                    {(() => {
-                      const result = stockResults[code];
-                      if (!result || result.state === 'idle') {
-                        return (
-                          <button 
-                            className="card-stock-btn" 
-                            onClick={() => checkStock(code)}
-                          >
-                            Check Stock
-                          </button>
-                        );
-                      }
-                      if (result.state === 'loading') {
-                        return <span className="card-stock-loading">Checking…</span>;
-                      }
-                      if (result.state === 'success') {
-                        return (
-                          <span className="card-stock-success">
-                            {result.stock === 99 ? '99+' : result.stock} left
-                          </span>
-                        );
-                      }
-                      if (result.state === 'no_session') {
-                        return (
-                          <a 
-                            href="https://www.lenovo.com/in/outletin/en/" 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="card-stock-error-link"
-                            title="Visit Lenovo to activate session cookies, then try again."
-                          >
-                            ⚠️ Visit site
-                          </a>
-                        );
-                      }
-                      return <span className="card-stock-error">⚠️ Error</span>;
-                    })()}
+                
+                {(Number(laptop["orig-price"]) > 0 || Number(laptop["percentage-savings"]) > 0) && (
+                  <div className="price-secondary">
+                    {Number(laptop["orig-price"]) > 0 && (
+                      <span className="original-price">
+                        ₹{Number(laptop["orig-price"]).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                    {Number(laptop["percentage-savings"]) > 0 && (
+                      <span className="badge badge-green discount-badge">
+                        {Math.round(Number(laptop["percentage-savings"]))}% off
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

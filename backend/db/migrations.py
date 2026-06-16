@@ -316,21 +316,5 @@ def run_migrations() -> None:
             _log("Migration 7 applied successfully.")
             current_version = 7
             
-        if current_version < 8:
-            _log("Applying migration 8: Create stock_history table.")
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS stock_history (
-                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                    product_code TEXT NOT NULL,
-                    stock        INTEGER NOT NULL,
-                    checked_at   TEXT NOT NULL
-                )
-            """)
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_history_code ON stock_history(product_code)")
-            cursor.execute("UPDATE schema_version SET version = 8")
-            conn.commit()
-            _log("Migration 8 applied successfully.")
-            current_version = 8
-            
     finally:
         conn.close()

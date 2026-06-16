@@ -15,7 +15,6 @@ import { AboutPage } from "./pages/AboutPage";
 import { FaqPage } from "./pages/FaqPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LaptopData, loadFromStorage, loadFilters, FacetGroup } from "./data";
-import { useStockCheck } from "./useStockCheck";
 
 const App = () => {
   // ── Single data fetch for the whole app ─────────────────────────────────
@@ -132,7 +131,6 @@ const AppContent = ({
 }: AppContentProps) => {
   const location = useLocation();
   const showNavbar = location.pathname !== "/";
-  const { checkStock, stockResults } = useStockCheck();
 
   return (
     <>
@@ -165,8 +163,6 @@ const AppContent = ({
                 compareList={compareList}
                 toggleCompare={toggleCompare}
                 facetGroups={facetGroups}
-                checkStock={checkStock}
-                stockResults={stockResults}
               />
             }
           />
@@ -179,8 +175,6 @@ const AppContent = ({
                 toggleWatch={toggleWatch}
                 compareList={compareList}
                 toggleCompare={toggleCompare}
-                checkStock={checkStock}
-                stockResults={stockResults}
               />
             }
           />

@@ -81,58 +81,6 @@ const StarButton = (props: any) => {
   );
 };
 
-const StockCheckCell = (props: any) => {
-  const context = props.context || {};
-  const checkStock = context.checkStock;
-  const stockResults = context.stockResults || {};
-  const data = props.data;
-  if (!data) return null;
-
-  const code = String(data["product-number"]);
-  const available = data["available"];
-  const result = stockResults[code];
-
-  if (!available) {
-    return <span style={{ opacity: 0.35 }}>—</span>;
-  }
-
-  if (!result || result.state === 'idle') {
-    return (
-      <button 
-        className="stock-check-btn" 
-        onClick={(e) => { e.stopPropagation(); checkStock?.(code); }}
-      >
-        Check
-      </button>
-    );
-  }
-
-  if (result.state === 'loading') {
-    return <span className="stock-check-status-loading">…</span>;
-  }
-
-  if (result.state === 'success') {
-    return <span className="stock-check-status-success">{result.stock === 99 ? '99+' : result.stock} units</span>;
-  }
-
-  if (result.state === 'no_session') {
-    return (
-      <a 
-        href="https://www.lenovo.com/in/outletin/en/" 
-        target="_blank" 
-        rel="noopener noreferrer" 
-        className="stock-check-link-error"
-        title="Session missing. Click to visit Lenovo and activate cookies."
-        onClick={(e) => e.stopPropagation()}
-      >
-        ⚠️ Session
-      </a>
-    );
-  }
-
-  return <span className="stock-check-status-error" title={result.error || 'Failed to check'}>⚠️ Error</span>;
-};
-
 
 const defaultColDef = {
   sortable: true,
@@ -272,15 +220,6 @@ const columnDefs: ColDef[] = [
     filterParams: {
       defaultOption: 'notBlank',
     },
-  },
-  {
-    headerName: "Stock",
-    field: "stock_check",
-    width: 85,
-    cellRenderer: StockCheckCell,
-    sortable: false,
-    filter: false,
-    resizable: false,
   },
   {
     headerName: "Price",
@@ -436,7 +375,6 @@ interface GridProps {
   compareList: LaptopData[];
   toggleCompare: (laptop: LaptopData) => void;
   onSortChanged?: (colId: string, sort: "asc" | "desc" | null) => void;
-  context?: any;
 }
 
 export type GridHandle = {
@@ -444,7 +382,7 @@ export type GridHandle = {
   applySort: (colId: string, sort: 'asc' | 'desc' | null) => void;
 };
 
-const Grid = forwardRef<GridHandle, GridProps>(({ data, onRowSelected, watchlist, toggleWatch, compareList, toggleCompare, onSortChanged, context }, ref) => {
+const Grid = forwardRef<GridHandle, GridProps>(({ data, onRowSelected, watchlist, toggleWatch, compareList, toggleCompare, onSortChanged }, ref) => {
   const grid = useRef<AgGridReact>(null);
 
   useImperativeHandle(ref, () => ({
@@ -506,7 +444,6 @@ const Grid = forwardRef<GridHandle, GridProps>(({ data, onRowSelected, watchlist
           toggleWatch,
           compareList,
           toggleCompare,
-          ...context
         }}
         onRowClicked={(event) => {
           if (onRowSelected && event.data) {
