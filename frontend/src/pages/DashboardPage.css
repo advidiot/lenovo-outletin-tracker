@@ -3,6 +3,11 @@
   flex-direction: column;
   height: calc(100vh - var(--navbar-height));
   overflow: hidden;
+  transition: height var(--transition-md);
+}
+
+body.navbar-hidden .dashboard-layout {
+  height: 100vh;
 }
 
 /* Toolbar */

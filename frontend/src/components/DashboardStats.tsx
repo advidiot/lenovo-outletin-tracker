@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import {
-  BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, XAxis, PieChart, Pie, Cell,
   ResponsiveContainer, Tooltip,
 } from "recharts";
 import { LaptopData } from "../data";
@@ -33,7 +33,7 @@ function buildPriceBuckets(data: LaptopData[]) {
   const step = rangeDiff / bucketCount || 10000;
 
   const buckets = Array.from({ length: bucketCount }, (_, i) => ({
-    range: `₹${Math.round((min + i * step) / 1000)}k`,
+    range: `${Math.round((min + i * step) / 1000)}k`,
     count: 0,
   }));
 
@@ -180,6 +180,7 @@ export const DashboardStats = ({
         <div className="stat-chart">
           <ResponsiveContainer width="100%" height={52}>
             <BarChart data={priceBuckets} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <XAxis dataKey="range" hide />
               <Bar dataKey="count" fill="var(--accent-teal)" radius={[2, 2, 0, 0]} barSize={16} />
               <Tooltip
                 contentStyle={{
