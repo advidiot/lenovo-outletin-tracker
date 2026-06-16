@@ -3,32 +3,32 @@ import "./AboutPage.css";
 
 const FAQ_ITEMS = [
   {
-    q: "Why do some rows have no Buy link?",
-    a: "Laptops that are out of stock or marked inactive do not have a buy link. They appear in the grid when 'Show sold out' is enabled in the filters.",
+    q: "How does TrackFurb work?",
+    a: "TrackFurb monitors the Lenovo Outlet India store and updates its laptop listings automatically every minute. It helps you track price drops, see when items go out of stock, and find the best refurbished deals.",
   },
   {
-    q: "Where is the data stored?",
-    a: "All data is self-hosted in a secure SQLite database (lenovo_tracker.db). No external storage services are used — your data stays private.",
+    q: "Are these laptops brand new?",
+    a: "Most laptops listed on the Lenovo Outlet are refurbished or scratch-and-dent units. The condition of each laptop (such as 'Certified Refurbished') is highlighted directly on its card.",
   },
   {
-    q: "How does the scraper run?",
-    a: "The scraper runs automatically as a background daemon thread inside app.py, polling the Lenovo Outlet API every 60 seconds.",
+    q: "Why do some laptops show as 'Sold Out'?",
+    a: "Lenovo's refurbished stock is highly limited, often with only a single unit available for a specific model. When a laptop is purchased, it is marked as sold out. You can choose to show or hide these using the 'Show sold out' checkbox in the filters sidebar.",
   },
   {
-    q: "What is 'Ghost Cleanup'?",
-    a: "Lenovo sometimes leaves sold-out listings visible on the index page (ghost listings). Ghost Cleanup queries Lenovo's comparison API in real-time to verify stock status and marks sold-out items inactive.",
+    q: "How do I buy a laptop?",
+    a: "For any laptop currently in stock, you can click the 'Buy ↗' button to open its official product page on the Lenovo Outlet India store, where you can check out directly.",
   },
   {
-    q: "How do I view price history?",
-    a: "Click any laptop row (or tap on mobile) to open its full detail page, which shows the complete price history chart.",
+    q: "How do I view the price history of a laptop?",
+    a: "Click on any laptop card (or click the 'Details' button) to view the detail page. This displays an interactive price chart showing all price changes since the laptop was first listed.",
   },
   {
-    q: "How do I compare laptops?",
-    a: "Check the compare checkbox on up to 4 laptops. The floating bar at the bottom will appear — click Compare to open the side-by-side comparison page.",
+    q: "How does the comparison feature work?",
+    a: "Check the 'Compare' box on up to 4 laptops. A bar will appear at the bottom of the screen — click 'Compare' to view a side-by-side comparison of their RAM, storage, processor, screen, and price details.",
   },
   {
     q: "What is the Watchlist?",
-    a: "Star any laptop to add it to your watchlist. Click the Watchlist button in the navbar to filter the grid to only your starred laptops. Watchlist is saved locally in your browser.",
+    a: "You can save laptops by clicking the star icon. Clicking the 'Watchlist' button in the navigation bar will filter the dashboard to display only your starred laptops. This list is saved locally in your web browser.",
   },
 ];
 
