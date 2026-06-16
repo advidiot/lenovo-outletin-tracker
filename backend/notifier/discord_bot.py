@@ -892,7 +892,12 @@ def _build_product_embed(product: dict, event_type: str, old_price: Optional[flo
     embed.add_field(name="🏷️ Savings", value=f"{savings}%" if savings is not None else "0%", inline=True)
     embed.add_field(name="📦 Condition", value=condition, inline=True)
     embed.add_field(name="🔗 Product Code", value=f"`{code}`", inline=True)
-
+ 
+    if event_type == "removed":
+        duration = product.get("_listing_duration")
+        if duration:
+            embed.add_field(name="⏱️ Listed for", value=duration, inline=True)
+ 
     if thumbnail:
         embed.set_thumbnail(url=thumbnail)
 
@@ -957,8 +962,14 @@ async def _send_compact_alerts(
             except (ValueError, TypeError):
                 old_price_str = str(old_price)
             price_str = f"{price_str} (Was: {old_price_str})"
-
-        lines.append(f"• [{action}] {name} — {price_str} — {savings_str} — [Store Link]({url})")
+ 
+        duration_str = ""
+        if event_type == "removed":
+            duration = p.get("_listing_duration")
+            if duration:
+                duration_str = f" — Listed for: {duration}"
+ 
+        lines.append(f"• [{action}] {name} — {price_str} — {savings_str}{duration_str} — [Store Link]({url})")
 
     # Send messages in chunks of 2000 chars
     current_msg = header

@@ -78,6 +78,9 @@ def send_telegram_notification(
     if not settings.TELEGRAM_ENABLED:
         return
         
+    if listing_duration is None:
+        listing_duration = product.get("_listing_duration")
+        
     name = _escape_html(product.get("productName", "Unknown Laptop"))
     price = product.get("finalPrice", "N/A")
     saving = product.get("savePercent", "N/A")
@@ -195,8 +198,10 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
                 url = f"{settings.LENOVO_BASE_URL}{url_path}"
             else:
                 url = settings.LENOVO_LAPTOPS_URL
-
-            item_lines.append(f"• <a href=\"{url}\">{name}</a> ({code})")
+ 
+            duration = p.get("_listing_duration")
+            duration_str = f" (Listed for: {duration})" if duration else ""
+            item_lines.append(f"• <a href=\"{url}\">{name}</a> ({code}){duration_str}")
         body = "\n".join(item_lines)
     else:
         title = f"{count} Tracker Events"

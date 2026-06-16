@@ -6,7 +6,7 @@ from backend.logging_config import _log, current_time
 from backend.db.connection import get_db_connection
 from backend.notifier.ntfy import send_push_notification, _send_batch_summary
 from backend.notifier.discord_bot import dispatch_discord_alerts
-from backend.notifier.telegram import send_telegram_notification
+from backend.notifier.telegram import send_telegram_notification, send_telegram_batch
 
 def _compute_listing_duration(first_seen: Optional[str], removed_at: str) -> Optional[str]:
     if not first_seen:
@@ -294,6 +294,13 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
         _dispatch_notifications(removed_queue, "removed", settings.NTFY_TOPIC_REMOVED)
         dispatch_discord_alerts(added_queue, "added")
         dispatch_discord_alerts(removed_queue, "removed")
+        if removed_queue:
+            if len(removed_queue) >= settings.NOTIFICATION_BATCH_THRESHOLD:
+                send_telegram_batch(removed_queue, "removed")
+            else:
+                for p in removed_queue:
+                    send_telegram_notification(p, "removed")
+                    time.sleep(1)
         if added_queue:
             from backend.notifier.discord_bot import dispatch_watchlist_alerts
             for p in added_queue:
