@@ -165,6 +165,16 @@
   white-space: nowrap;
 }
 
+.spec-row-multiline {
+  align-items: flex-start;
+}
+
+.spec-value-multiline {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 /* Footer / Pricing */
 .lenovo-card-footer {
   padding: 12px 16px 16px 16px;

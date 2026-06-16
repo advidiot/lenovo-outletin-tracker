@@ -114,9 +114,9 @@ export const LenovoCardGrid = ({
               {/* Specs Summary */}
               <div className="lenovo-card-specs">
                 {processor && (
-                  <div className="spec-row" title={processor}>
+                  <div className="spec-row spec-row-multiline" title={processor}>
                     <span className="spec-label">CPU:</span>
-                    <span className="spec-value">{processor}</span>
+                    <span className="spec-value spec-value-multiline">{processor}</span>
                   </div>
                 )}
                 {memory && (
@@ -138,9 +138,9 @@ export const LenovoCardGrid = ({
                   </div>
                 )}
                 {graphics && (
-                  <div className="spec-row" title={graphics}>
+                  <div className="spec-row spec-row-multiline" title={graphics}>
                     <span className="spec-label">GPU:</span>
-                    <span className="spec-value">{graphics}</span>
+                    <span className="spec-value spec-value-multiline">{graphics}</span>
                   </div>
                 )}
                 {os && (
