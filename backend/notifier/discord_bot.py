@@ -864,7 +864,18 @@ def _build_product_embed(product: dict, event_type: str, old_price: Optional[flo
     
     thumbnail = product.get("thumbnail_url")
     if not thumbnail:
-        thumbnail = product.get("media", {}).get("thumbnail", {}).get("imageAddress")
+        media = product.get("media", {})
+        gallery = media.get("gallery", [])
+        hero = media.get("heroImage")
+        if gallery and isinstance(gallery, list) and len(gallery) > 0:
+            thumbnail = gallery[0].get("imageAddress")
+        if not thumbnail and isinstance(hero, dict):
+            thumbnail = hero.get("imageAddress")
+        if not thumbnail:
+            thumbnail = media.get("thumbnail", {}).get("imageAddress")
+ 
+    if thumbnail and thumbnail.startswith("//"):
+        thumbnail = "https:" + thumbnail
 
     embed = discord.Embed(
         title=f"{titles.get(event_type, '🔔 Alert')}",

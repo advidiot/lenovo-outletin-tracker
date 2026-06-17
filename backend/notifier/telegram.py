@@ -22,6 +22,9 @@ def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Opt
     if not target_chat:
         return
     
+    if photo_url and photo_url.startswith("//"):
+        photo_url = "https:" + photo_url
+
     # Try sending photo if photo_url is provided and caption fits within limits
     if photo_url and len(text) <= 1024:
         try:
@@ -31,17 +34,17 @@ def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Opt
                 img_data = img_resp.content
                 photo_url_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendPhoto"
                 
+                mime = img_resp.headers.get("content-type", "image/png").split(";")[0].strip()
                 filename = "thumbnail.png"
-                if ".jpg" in photo_url.lower() or ".jpeg" in photo_url.lower():
+                if "jpeg" in mime.lower() or "jpg" in mime.lower():
                     filename = "thumbnail.jpg"
-                elif ".webp" in photo_url.lower():
-                    filename = "thumbnail.webp"
-                
-                mime = "image/png"
-                if filename.endswith(".jpg"):
                     mime = "image/jpeg"
-                elif filename.endswith(".webp"):
+                elif "webp" in mime.lower():
+                    filename = "thumbnail.webp"
                     mime = "image/webp"
+                elif "gif" in mime.lower():
+                    filename = "thumbnail.gif"
+                    mime = "image/gif"
 
                 files = {
                     "photo": (filename, img_data, mime)
@@ -172,7 +175,18 @@ def send_telegram_notification(
 
     photo_url = product.get("thumbnail_url")
     if not photo_url:
-        photo_url = product.get("media", {}).get("thumbnail", {}).get("imageAddress")
+        media = product.get("media", {})
+        gallery = media.get("gallery", [])
+        hero = media.get("heroImage")
+        if gallery and isinstance(gallery, list) and len(gallery) > 0:
+            photo_url = gallery[0].get("imageAddress")
+        if not photo_url and isinstance(hero, dict):
+            photo_url = hero.get("imageAddress")
+        if not photo_url:
+            photo_url = media.get("thumbnail", {}).get("imageAddress")
+ 
+    if photo_url and photo_url.startswith("//"):
+        photo_url = "https:" + photo_url
  
     text = f"<b>{title}</b>\n\n{body}"
     _send_telegram_text(text, photo_url=photo_url)

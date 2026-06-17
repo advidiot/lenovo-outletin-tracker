@@ -112,9 +112,20 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                 ensure_ascii=False,
             ) if classification else None
 
-            thumbnail_url = (
-                p.get("media", {}).get("thumbnail", {}).get("imageAddress") or None
-            )
+            # Extract high-resolution image from gallery or hero, falling back to thumbnail
+            media = p.get("media", {})
+            gallery = media.get("gallery", [])
+            hero = media.get("heroImage")
+            thumbnail_url = None
+            if gallery and isinstance(gallery, list) and len(gallery) > 0:
+                thumbnail_url = gallery[0].get("imageAddress")
+            if not thumbnail_url and isinstance(hero, dict):
+                thumbnail_url = hero.get("imageAddress")
+            if not thumbnail_url:
+                thumbnail_url = media.get("thumbnail", {}).get("imageAddress")
+ 
+            if thumbnail_url and thumbnail_url.startswith("//"):
+                thumbnail_url = "https:" + thumbnail_url
 
             cursor.execute("""
                 SELECT current_price, active, stability_count, pending_state, pending_removal_since
