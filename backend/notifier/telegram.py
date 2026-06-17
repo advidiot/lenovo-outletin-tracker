@@ -29,7 +29,9 @@ def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Opt
     if photo_url and len(text) <= 1024:
         try:
             session = _get_session()
-            img_resp = session.get(photo_url, timeout=15)
+            # Override accept header to prevent Lenovo's CDN from serving AVIF (which Telegram sendPhoto does not support)
+            download_headers = {"accept": "image/png,image/jpeg,image/webp"}
+            img_resp = session.get(photo_url, headers=download_headers, timeout=15)
             if img_resp.status_code == 200:
                 img_data = img_resp.content
                 photo_url_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendPhoto"
