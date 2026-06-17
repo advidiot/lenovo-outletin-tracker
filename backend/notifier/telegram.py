@@ -178,14 +178,18 @@ def send_telegram_notification(
     photo_url = product.get("thumbnail_url")
     if not photo_url:
         media = product.get("media", {})
+        hero = media.get("heroImage") or {}
+        thumb = media.get("thumbnail") or {}
         gallery = media.get("gallery", [])
-        hero = media.get("heroImage")
-        if gallery and isinstance(gallery, list) and len(gallery) > 0:
-            photo_url = gallery[0].get("imageAddress")
-        if not photo_url and isinstance(hero, dict):
+
+        if isinstance(hero, dict) and hero.get("imageAddress"):
             photo_url = hero.get("imageAddress")
-        if not photo_url:
-            photo_url = media.get("thumbnail", {}).get("imageAddress")
+        elif isinstance(thumb, dict) and thumb.get("imageAddress"):
+            photo_url = thumb.get("imageAddress")
+        elif gallery and isinstance(gallery, list) and len(gallery) > 0:
+            item = gallery[0]
+            if isinstance(item, dict):
+                photo_url = item.get("imageAddress")
  
     if photo_url and photo_url.startswith("//"):
         photo_url = "https:" + photo_url

@@ -112,17 +112,21 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                 ensure_ascii=False,
             ) if classification else None
 
-            # Extract high-resolution image from gallery or hero, falling back to thumbnail
+            # Prioritize high-res heroImage/thumbnail (main store catalog images) before falling back to gallery
             media = p.get("media", {})
+            hero = media.get("heroImage") or {}
+            thumb = media.get("thumbnail") or {}
             gallery = media.get("gallery", [])
-            hero = media.get("heroImage")
+
             thumbnail_url = None
-            if gallery and isinstance(gallery, list) and len(gallery) > 0:
-                thumbnail_url = gallery[0].get("imageAddress")
-            if not thumbnail_url and isinstance(hero, dict):
+            if isinstance(hero, dict) and hero.get("imageAddress"):
                 thumbnail_url = hero.get("imageAddress")
-            if not thumbnail_url:
-                thumbnail_url = media.get("thumbnail", {}).get("imageAddress")
+            elif isinstance(thumb, dict) and thumb.get("imageAddress"):
+                thumbnail_url = thumb.get("imageAddress")
+            elif gallery and isinstance(gallery, list) and len(gallery) > 0:
+                item = gallery[0]
+                if isinstance(item, dict):
+                    thumbnail_url = item.get("imageAddress")
  
             if thumbnail_url and thumbnail_url.startswith("//"):
                 thumbnail_url = "https:" + thumbnail_url
