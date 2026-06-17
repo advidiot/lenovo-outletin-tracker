@@ -3,6 +3,7 @@ from typing import Optional, List
 from backend.config import settings
 from backend.logging_config import _log
 from backend.scraper.api import _get_session
+import requests as standard_requests
 
 def _truncate_name(name: str, max_len: int = 40) -> str:
     if len(name) <= max_len:
@@ -23,20 +24,41 @@ def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Opt
     
     # Try sending photo if photo_url is provided and caption fits within limits
     if photo_url and len(text) <= 1024:
-        photo_url_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendPhoto"
-        photo_payload = {
-            "chat_id": target_chat,
-            "photo": photo_url,
-            "caption": text,
-            "parse_mode": "HTML"
-        }
         try:
             session = _get_session()
-            resp = session.post(photo_url_api, json=photo_payload, timeout=15)
-            if resp.status_code == 200:
-                return # Successful, do not fallback
+            img_resp = session.get(photo_url, timeout=15)
+            if img_resp.status_code == 200:
+                img_data = img_resp.content
+                photo_url_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendPhoto"
+                
+                filename = "thumbnail.png"
+                if ".jpg" in photo_url.lower() or ".jpeg" in photo_url.lower():
+                    filename = "thumbnail.jpg"
+                elif ".webp" in photo_url.lower():
+                    filename = "thumbnail.webp"
+                
+                mime = "image/png"
+                if filename.endswith(".jpg"):
+                    mime = "image/jpeg"
+                elif filename.endswith(".webp"):
+                    mime = "image/webp"
+
+                files = {
+                    "photo": (filename, img_data, mime)
+                }
+                photo_payload = {
+                    "chat_id": target_chat,
+                    "caption": text,
+                    "parse_mode": "HTML"
+                }
+                
+                resp = standard_requests.post(photo_url_api, data=photo_payload, files=files, timeout=20)
+                if resp.status_code == 200:
+                    return # Successful, do not fallback
+                else:
+                    _log(f"[Telegram] Failed to upload photo: HTTP {resp.status_code} - {resp.text}. Falling back to text.")
             else:
-                _log(f"[Telegram] Failed to send photo: HTTP {resp.status_code} - {resp.text}. Falling back to text.")
+                _log(f"[Telegram] Failed to download photo from CDN: HTTP {img_resp.status_code}. Falling back to text.")
         except Exception as e:
             _log(f"[Telegram] Error sending photo: {e}. Falling back to text.")
 
