@@ -13,14 +13,35 @@ def _escape_html(text: str) -> str:
     """Escape HTML special characters for Telegram HTML parse mode."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-def _send_telegram_text(text: str, chat_id: Optional[str] = None) -> None:
+def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Optional[str] = None) -> None:
     if not settings.TELEGRAM_BOT_TOKEN:
         return
-    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
     
     target_chat = chat_id or settings.TELEGRAM_CHANNEL_ID
     if not target_chat:
         return
+    
+    # Try sending photo if photo_url is provided and caption fits within limits
+    if photo_url and len(text) <= 1024:
+        photo_url_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendPhoto"
+        photo_payload = {
+            "chat_id": target_chat,
+            "photo": photo_url,
+            "caption": text,
+            "parse_mode": "HTML"
+        }
+        try:
+            session = _get_session()
+            resp = session.post(photo_url_api, json=photo_payload, timeout=15)
+            if resp.status_code == 200:
+                return # Successful, do not fallback
+            else:
+                _log(f"[Telegram] Failed to send photo: HTTP {resp.status_code} - {resp.text}. Falling back to text.")
+        except Exception as e:
+            _log(f"[Telegram] Error sending photo: {e}. Falling back to text.")
+
+    # Fallback to sendMessage
+    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
     
     # Split text into chunks of <= 4000 characters without breaking lines if possible
     chunks = []
@@ -127,8 +148,12 @@ def send_telegram_notification(
         title = f"Tracker Alert: <a href=\"{url}\">{display_name}</a>"
         body = f"Model: {code}\nUnknown event type: {event_type}"
 
+    photo_url = product.get("thumbnail_url")
+    if not photo_url:
+        photo_url = product.get("media", {}).get("thumbnail", {}).get("imageAddress")
+ 
     text = f"<b>{title}</b>\n\n{body}"
-    _send_telegram_text(text)
+    _send_telegram_text(text, photo_url=photo_url)
 
 def send_telegram_batch(batch: List[dict], event_type: str) -> None:
     if not settings.TELEGRAM_ENABLED or not batch:
