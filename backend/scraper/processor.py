@@ -263,11 +263,11 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                         WHERE product_code = ?
                     """, (now, now, active_code))
                     _insert_stock_event(cursor, active_code, "removed", now, row["current_price"])
-
+ 
         # --- Matured removal notifications (fire after 10-minute debounce) ---
         cursor.execute("""
             SELECT product_code, product_name, condition, current_price, save_percent,
-                   first_seen, pending_removal_since
+                   first_seen, pending_removal_since, thumbnail_url
             FROM products
             WHERE pending_removal_since IS NOT NULL AND active = 0
         """)
@@ -282,7 +282,7 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                     WHERE product_code = ?
                 """, (row["product_code"],))
                 _log(f"REMOVAL CONFIRMED ({int(elapsed)}s elapsed): {row['product_code']} - {row['product_name']}")
-
+ 
                 if not is_first_run:
                     duration = _compute_listing_duration(row["first_seen"], now)
                     dummy_product = {
@@ -292,6 +292,7 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                         "finalPrice": row["current_price"],
                         "savePercent": row["save_percent"],
                         "url": f"/p/{row['product_code']}",
+                        "thumbnail_url": row["thumbnail_url"],
                         "_listing_duration": duration,
                     }
                     removed_queue.append(dummy_product)
