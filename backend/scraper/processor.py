@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from backend.config import settings
 from backend.logging_config import _log, current_time
@@ -60,6 +61,17 @@ def _insert_stock_event(cursor, product_code: str, event_type: str, timestamp: s
         INSERT INTO stock_history (product_code, event_type, timestamp, price)
         VALUES (?, ?, ?, ?)
     """, (product_code, event_type, timestamp, price))
+
+def get_product_volatility(cursor, product_code: str) -> int:
+    """Count actual removal events in the trailing window using timezone-safe local time cutoff."""
+    cutoff_ts = (datetime.now() - timedelta(hours=settings.FLAP_WINDOW_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("""
+        SELECT COUNT(*) FROM stock_history 
+        WHERE product_code = ? 
+          AND event_type = 'removed' 
+          AND timestamp >= ?
+    """, (product_code, cutoff_ts))
+    return cursor.fetchone()[0]
 
 def process_scanned_products(products: list[dict], is_first_run: bool, partial_scan: bool = False) -> tuple[list[dict], list[dict]]:
     """Compare freshly-scanned product list against database and process updates."""
@@ -278,16 +290,29 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
         pending_rows = cursor.fetchall()
         now_ts = time.mktime(time.strptime(now, fmt))
         for row in pending_rows:
+            code = row["product_code"]
+            volatility = get_product_volatility(cursor, code)
+
+            if volatility >= settings.TIER2_FLAP_THRESHOLD:
+                debounce_seconds = settings.TIER2_DEBOUNCE_SECONDS
+                suppress_alerts = True
+            elif volatility >= settings.TIER1_FLAP_THRESHOLD:
+                debounce_seconds = settings.TIER1_DEBOUNCE_SECONDS
+                suppress_alerts = False
+            else:
+                debounce_seconds = settings.TIER0_DEBOUNCE_SECONDS
+                suppress_alerts = False
+
             pending_ts = time.mktime(time.strptime(row["pending_removal_since"], fmt))
             elapsed = now_ts - pending_ts
-            if elapsed >= settings.REMOVAL_DEBOUNCE_SECONDS:
+            if elapsed >= debounce_seconds:
                 cursor.execute("""
                     UPDATE products SET pending_removal_since = NULL
                     WHERE product_code = ?
-                """, (row["product_code"],))
-                _log(f"REMOVAL CONFIRMED ({int(elapsed)}s elapsed): {row['product_code']} - {row['product_name']}")
+                """, (code,))
+                _log(f"REMOVAL CONFIRMED ({int(elapsed)}s elapsed): {code} - {row['product_name']} (volatility: {volatility}, tier: {'2 (muted)' if suppress_alerts else ('1' if volatility >= settings.TIER1_FLAP_THRESHOLD else '0')})")
  
-                if not is_first_run:
+                if not is_first_run and not suppress_alerts:
                     duration = _compute_listing_duration(row["first_seen"], now)
                     dummy_product = {
                         "productCode": row["product_code"],

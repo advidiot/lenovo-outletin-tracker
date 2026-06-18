@@ -43,3 +43,7 @@ local_tests/
 
 # Runbook (ignored)
 chat_restoration_runbook.md
+
+# Local editor and scratch files
+.vscode/
+scratch/

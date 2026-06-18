@@ -72,6 +72,14 @@ class Settings:
     STABILITY_THRESHOLD: int = 2          # Consecutive cycles before a restock notification fires
     REMOVAL_DEBOUNCE_SECONDS: int = 600   # Seconds before a removal notification fires (10 min)
 
+    # Asymmetric Adaptive Debounce
+    TIER0_DEBOUNCE_SECONDS: int = 420
+    TIER1_DEBOUNCE_SECONDS: int = 960
+    TIER2_DEBOUNCE_SECONDS: int = 2100
+    FLAP_WINDOW_HOURS: int = 6
+    TIER1_FLAP_THRESHOLD: int = 1
+    TIER2_FLAP_THRESHOLD: int = 3
+
     @classmethod
     def load(cls) -> "Settings":
         # Check PORT
@@ -199,6 +207,36 @@ class Settings:
         except ValueError:
             removal_debounce_seconds = 600
 
+        try:
+            tier0_debounce_seconds = int(os.environ.get("TIER0_DEBOUNCE_SECONDS", "420"))
+        except ValueError:
+            tier0_debounce_seconds = 420
+
+        try:
+            tier1_debounce_seconds = int(os.environ.get("TIER1_DEBOUNCE_SECONDS", "960"))
+        except ValueError:
+            tier1_debounce_seconds = 960
+
+        try:
+            tier2_debounce_seconds = int(os.environ.get("TIER2_DEBOUNCE_SECONDS", "2100"))
+        except ValueError:
+            tier2_debounce_seconds = 2100
+
+        try:
+            flap_window_hours = int(os.environ.get("FLAP_WINDOW_HOURS", "6"))
+        except ValueError:
+            flap_window_hours = 6
+
+        try:
+            tier1_flap_threshold = int(os.environ.get("TIER1_FLAP_THRESHOLD", "1"))
+        except ValueError:
+            tier1_flap_threshold = 1
+
+        try:
+            tier2_flap_threshold = int(os.environ.get("TIER2_FLAP_THRESHOLD", "3"))
+        except ValueError:
+            tier2_flap_threshold = 3
+
         return cls(
             PORT=port,
             DIRECTORY=directory,
@@ -230,6 +268,12 @@ class Settings:
             MAX_FAILED_PAGES=max_failed_pages,
             STABILITY_THRESHOLD=stability_threshold,
             REMOVAL_DEBOUNCE_SECONDS=removal_debounce_seconds,
+            TIER0_DEBOUNCE_SECONDS=tier0_debounce_seconds,
+            TIER1_DEBOUNCE_SECONDS=tier1_debounce_seconds,
+            TIER2_DEBOUNCE_SECONDS=tier2_debounce_seconds,
+            FLAP_WINDOW_HOURS=flap_window_hours,
+            TIER1_FLAP_THRESHOLD=tier1_flap_threshold,
+            TIER2_FLAP_THRESHOLD=tier2_flap_threshold,
         )
 
 # Load global settings instance
