@@ -74,7 +74,7 @@ class Settings:
 
     # Asymmetric Adaptive Debounce
     TIER0_DEBOUNCE_SECONDS: int = 420
-    TIER1_DEBOUNCE_SECONDS: int = 960
+    TIER1_DEBOUNCE_SECONDS: int = 1020
     TIER2_DEBOUNCE_SECONDS: int = 2100
     FLAP_WINDOW_HOURS: int = 6
     TIER1_FLAP_THRESHOLD: int = 1
@@ -213,9 +213,9 @@ class Settings:
             tier0_debounce_seconds = 420
 
         try:
-            tier1_debounce_seconds = int(os.environ.get("TIER1_DEBOUNCE_SECONDS", "960"))
+            tier1_debounce_seconds = int(os.environ.get("TIER1_DEBOUNCE_SECONDS", "1020"))
         except ValueError:
-            tier1_debounce_seconds = 960
+            tier1_debounce_seconds = 1020
 
         try:
             tier2_debounce_seconds = int(os.environ.get("TIER2_DEBOUNCE_SECONDS", "2100"))
