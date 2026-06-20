@@ -48,7 +48,8 @@ function applyFilters(
   searchQuery: string
 ): LaptopData[] {
   return data.filter((laptop) => {
-    if (!filters.showUnavailable && !laptop["available"]) return false;
+    if (!filters.showUnavailable && !laptop["available"] && !(filters.showCheckoutHolds && laptop["in_cart_hold"])) return false;
+    if (!filters.showCheckoutHolds && laptop["in_cart_hold"]) return false;
 
     const price = Number(laptop["price"]);
     if (price < filters.priceMin || price > filters.priceMax) return false;
@@ -317,8 +318,10 @@ function parseFiltersFromSearchParams(params: URLSearchParams): FilterState {
     return val ? parseInt(val, 10) : defaultValue;
   };
 
-  const parseBoolean = (key: string): boolean => {
-    return params.get(key) === "1";
+  const parseBoolean = (key: string, defaultValue = false): boolean => {
+    const val = params.get(key);
+    if (val === null) return defaultValue;
+    return val === "1";
   };
 
   return {
@@ -333,6 +336,7 @@ function parseFiltersFromSearchParams(params: URLSearchParams): FilterState {
     ddrGens: parseArray("ddrGens"),
     touchscreenOnly: parseBoolean("touchscreenOnly"),
     showUnavailable: parseBoolean("showUnavailable"),
+    showCheckoutHolds: parseBoolean("showCheckoutHolds", true),
     storageSizes: parseArray("storageSizes"),
     operatingSystems: parseArray("operatingSystems"),
     weights: parseArray("weights"),
@@ -368,9 +372,9 @@ function serializeFiltersToSearchParams(
     }
   };
 
-  const setBoolean = (key: string, val: boolean) => {
-    if (val) {
-      newParams.set(key, "1");
+  const setBoolean = (key: string, val: boolean, defaultVal = false) => {
+    if (val !== defaultVal) {
+      newParams.set(key, val ? "1" : "0");
     } else {
       newParams.delete(key);
     }
@@ -387,6 +391,7 @@ function serializeFiltersToSearchParams(
   setArray("ddrGens", filters.ddrGens);
   setBoolean("touchscreenOnly", filters.touchscreenOnly);
   setBoolean("showUnavailable", filters.showUnavailable);
+  setBoolean("showCheckoutHolds", filters.showCheckoutHolds, true);
   setArray("storageSizes", filters.storageSizes);
   setArray("operatingSystems", filters.operatingSystems);
   setArray("weights", filters.weights);

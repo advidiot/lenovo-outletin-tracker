@@ -19,6 +19,10 @@
 .mobile-card:hover { background: var(--bg-tertiary); }
 .mobile-card:active { background: var(--bg-hover); }
 .mobile-card-unavailable { opacity: 0.6; }
+.mobile-card-hold {
+  border: 1px solid var(--accent-amber) !important;
+  background: var(--accent-amber-light) !important;
+}
 
 .mobile-card-img {
   width: 56px;

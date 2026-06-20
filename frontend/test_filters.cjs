@@ -93,7 +93,8 @@ function matchWeightRange(weightKg, selectedRange) {
 
 function applyFilters(data, filters) {
   return data.filter((laptop) => {
-    if (!filters.showUnavailable && !laptop["available"]) return false;
+    if (!filters.showUnavailable && !laptop["available"] && !(filters.showCheckoutHolds && laptop["in_cart_hold"])) return false;
+    if (!filters.showCheckoutHolds && laptop["in_cart_hold"]) return false;
 
     if (filters.brands && filters.brands.length > 0) {
       const model = String(laptop["model"] || "").toLowerCase();
@@ -355,6 +356,7 @@ const DEFAULT_FILTERS = {
   gpuModels: [],
   touchscreenOnly: false,
   showUnavailable: false,
+  showCheckoutHolds: true,
 };
 
 function parseFiltersFromSearchParams(params) {
@@ -368,8 +370,10 @@ function parseFiltersFromSearchParams(params) {
     return val ? parseInt(val, 10) : defaultValue;
   };
 
-  const parseBoolean = (key) => {
-    return params.get(key) === "1";
+  const parseBoolean = (key, defaultValue = false) => {
+    const val = params.get(key);
+    if (val === null) return defaultValue;
+    return val === "1";
   };
 
   return {
@@ -384,6 +388,7 @@ function parseFiltersFromSearchParams(params) {
     ddrGens: parseArray("ddrGens"),
     touchscreenOnly: parseBoolean("touchscreenOnly"),
     showUnavailable: parseBoolean("showUnavailable"),
+    showCheckoutHolds: parseBoolean("showCheckoutHolds", true),
     storageSizes: parseArray("storageSizes"),
     operatingSystems: parseArray("operatingSystems"),
     weights: parseArray("weights"),
@@ -416,9 +421,9 @@ function serializeFiltersToSearchParams(filters, currentParams) {
     }
   };
 
-  const setBoolean = (key, val) => {
-    if (val) {
-      newParams.set(key, "1");
+  const setBoolean = (key, val, defaultVal = false) => {
+    if (val !== defaultVal) {
+      newParams.set(key, val ? "1" : "0");
     } else {
       newParams.delete(key);
     }
@@ -435,6 +440,7 @@ function serializeFiltersToSearchParams(filters, currentParams) {
   setArray("ddrGens", filters.ddrGens);
   setBoolean("touchscreenOnly", filters.touchscreenOnly);
   setBoolean("showUnavailable", filters.showUnavailable);
+  setBoolean("showCheckoutHolds", filters.showCheckoutHolds, true);
   setArray("storageSizes", filters.storageSizes);
   setArray("operatingSystems", filters.operatingSystems);
   setArray("weights", filters.weights);
@@ -470,12 +476,27 @@ assert.strictEqual(serialized.get("priceMax"), null); // default value, should b
 assert.strictEqual(serialized.get("brands"), "Yoga,LOQ");
 assert.strictEqual(serialized.get("touchscreenOnly"), "1");
 assert.strictEqual(serialized.get("showUnavailable"), null);
+assert.strictEqual(serialized.get("showCheckoutHolds"), null); // default value, should be omitted
 
 // Roundtrip validation
 const parsed = parseFiltersFromSearchParams(serialized);
 assert.deepStrictEqual(parsed, testFilters);
 
 console.log("✓ Test 7 Passed: URL parameter serialization and roundtrip validation succeeded.");
+
+// Test 8: showCheckoutHolds validation
+const holdLaptops = [
+  { product_code: "1", available: false, in_cart_hold: true },
+  { product_code: "2", available: false, in_cart_hold: false },
+];
+const filteredHolds1 = applyFilters(holdLaptops, { ...DEFAULT_FILTERS, showUnavailable: false, showCheckoutHolds: true });
+assert.strictEqual(filteredHolds1.length, 1);
+assert.strictEqual(filteredHolds1[0].product_code, "1");
+
+const filteredHolds2 = applyFilters(holdLaptops, { ...DEFAULT_FILTERS, showUnavailable: false, showCheckoutHolds: false });
+assert.strictEqual(filteredHolds2.length, 0);
+
+console.log("✓ Test 8 Passed: Checkout Hold filtering works correctly.");
 
 console.log("\nALL FILTER TESTS COMPLETED SUCCESSFULLY!");
 

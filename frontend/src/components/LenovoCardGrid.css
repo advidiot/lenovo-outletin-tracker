@@ -42,6 +42,30 @@
   border-color: var(--accent-red);
 }
 
+.lenovo-card-hold {
+  border: 1.5px solid var(--accent-amber) !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.15);
+}
+
+.lenovo-card-hold:hover {
+  border-color: var(--accent-amber) !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3), var(--card-shadow-lg);
+}
+
+.badge-hold {
+  background: var(--accent-amber-light);
+  color: var(--accent-amber);
+}
+
+.btn-hold, .btn-hold:disabled {
+  background: var(--accent-amber-light) !important;
+  color: var(--accent-amber) !important;
+  border: 1px solid var(--accent-amber) !important;
+  opacity: 0.8 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
 /* Header (Badges & Star) */
 .lenovo-card-header {
   display: flex;

@@ -383,9 +383,29 @@ def get_laptops_data() -> List[Dict[str, Any]]:
                 except Exception:
                     pass
 
+            # Calculate cart hold status dynamically
+            in_cart_hold = False
+            hold_expires_in_seconds = 0
+            if row['active'] == 0 and row['pending_removal_since'] is not None:
+                try:
+                    fmt = "%Y-%m-%d %H:%M:%S"
+                    pending_ts = time.mktime(time.strptime(row['pending_removal_since'], fmt))
+                    elapsed = int(time.time() - pending_ts)
+                    db_debounce = row['debounce_duration']
+                    if db_debounce is None:
+                        db_debounce = settings.TIER0_DEBOUNCE_SECONDS
+                    remaining = db_debounce - elapsed
+                    if remaining > 0:
+                        in_cart_hold = True
+                        hold_expires_in_seconds = remaining
+                except Exception as e:
+                    _log(f"Error calculating hold expiration for {row['product_code']}: {e}")
+
             res = parse_resolution(disp)
             laptop = {
                 "available": row['active'] == 1,
+                "in_cart_hold": in_cart_hold,
+                "hold_expires_in_seconds": hold_expires_in_seconds,
                 "brand": "Lenovo",
                 "model": clean_model(p_name),
                 "processor": proc,
@@ -442,7 +462,7 @@ def get_laptops_data() -> List[Dict[str, Any]]:
             laptops.append(laptop)
 
         # Strip internal scraper metadata — these columns are not for the frontend
-        _INTERNAL_COLS = ("stability_count", "pending_state", "pending_removal_since")
+        _INTERNAL_COLS = ("stability_count", "pending_state", "pending_removal_since", "debounce_duration")
         for item in laptops:
             for col in _INTERNAL_COLS:
                 item.pop(col, None)

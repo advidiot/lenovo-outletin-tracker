@@ -354,6 +354,42 @@ def run_migrations() -> None:
             _log("Migration 9 applied successfully.")
             current_version = 9
 
+        if current_version < 10:
+            _log("Applying migration 10: Add debounce_duration and message tracking tables.")
+            cursor.execute("PRAGMA table_info(products)")
+            prod_columns = [row[1] for row in cursor.fetchall()]
+            if "debounce_duration" not in prod_columns:
+                _log("Adding column 'debounce_duration' to products table.")
+                cursor.execute("ALTER TABLE products ADD COLUMN debounce_duration INTEGER DEFAULT NULL")
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS discord_sent_messages (
+                    product_code TEXT NOT NULL,
+                    channel_id TEXT NOT NULL,
+                    message_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    sent_at TEXT NOT NULL,
+                    PRIMARY KEY (product_code, channel_id)
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS telegram_sent_messages (
+                    product_code TEXT NOT NULL,
+                    chat_id TEXT NOT NULL,
+                    message_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    message_type TEXT NOT NULL,
+                    sent_at TEXT NOT NULL,
+                    PRIMARY KEY (product_code, chat_id)
+                )
+            """)
+
+            cursor.execute("UPDATE schema_version SET version = 10")
+            conn.commit()
+            _log("Migration 10 applied successfully.")
+            current_version = 10
+
     finally:
         conn.close()
 

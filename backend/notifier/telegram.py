@@ -4,6 +4,8 @@ from backend.config import settings
 from backend.logging_config import _log
 from backend.scraper.api import _get_session
 import requests as standard_requests
+from backend.db.connection import get_db_connection
+from backend.scraper.enrichment import clean_model
 
 def _truncate_name(name: str, max_len: int = 40) -> str:
     if len(name) <= max_len:
@@ -14,13 +16,13 @@ def _escape_html(text: str) -> str:
     """Escape HTML special characters for Telegram HTML parse mode."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Optional[str] = None) -> None:
+def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Optional[str] = None) -> tuple[Optional[str], Optional[str]]:
     if not settings.TELEGRAM_BOT_TOKEN:
-        return
+        return None, None
     
     target_chat = chat_id or settings.TELEGRAM_CHANNEL_ID
     if not target_chat:
-        return
+        return None, None
     
     if photo_url and photo_url.startswith("//"):
         photo_url = "https:" + photo_url
@@ -59,7 +61,14 @@ def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Opt
                 
                 resp = standard_requests.post(photo_url_api, data=photo_payload, files=files, timeout=20)
                 if resp.status_code == 200:
-                    return # Successful, do not fallback
+                    try:
+                        res_json = resp.json()
+                        msg_id = res_json.get("result", {}).get("message_id")
+                        if msg_id:
+                            return str(msg_id), "photo"
+                    except Exception:
+                        pass
+                    return None, None
                 else:
                     _log(f"[Telegram] Failed to upload photo: HTTP {resp.status_code} - {resp.text}. Falling back to text.")
             else:
@@ -81,6 +90,7 @@ def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Opt
     if text:
         chunks.append(text)
         
+    last_msg_id = None
     for chunk in chunks:
         payload = {
             "chat_id": target_chat,
@@ -91,10 +101,22 @@ def _send_telegram_text(text: str, chat_id: Optional[str] = None, photo_url: Opt
         try:
             session = _get_session()
             resp = session.post(url, json=payload, timeout=15)
-            if resp.status_code != 200:
+            if resp.status_code == 200:
+                try:
+                    res_json = resp.json()
+                    msg_id = res_json.get("result", {}).get("message_id")
+                    if msg_id:
+                        last_msg_id = str(msg_id)
+                except Exception:
+                    pass
+            else:
                 _log(f"[Telegram] Failed to send message: HTTP {resp.status_code} - {resp.text}")
         except Exception as e:
             _log(f"[Telegram] Error sending message: {e}")
+            
+    if last_msg_id:
+        return last_msg_id, "text"
+    return None, None
 
 def send_telegram_startup_alert(db_count: int) -> None:
     if not settings.TELEGRAM_OWNER_ID:
@@ -195,7 +217,138 @@ def send_telegram_notification(
         photo_url = "https:" + photo_url
  
     text = f"<b>{title}</b>\n\n{body}"
-    _send_telegram_text(text, photo_url=photo_url)
+    msg_id, msg_type = _send_telegram_text(text, photo_url=photo_url)
+    
+    if msg_id and settings.TELEGRAM_CHANNEL_ID:
+        try:
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+                cursor.execute("""
+                    INSERT OR REPLACE INTO telegram_sent_messages 
+                    (product_code, chat_id, message_id, event_type, message_type, sent_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (code, str(settings.TELEGRAM_CHANNEL_ID), str(msg_id), event_type, msg_type, now_str))
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:
+            _log(f"[Telegram] Database error logging sent message: {e}")
+
+def dispatch_telegram_edit(product_code: str, status: str, expire_time: Optional[str] = None) -> None:
+    """Trigger non-blocking Telegram message edits for state transitions."""
+    if not settings.TELEGRAM_ENABLED or not settings.TELEGRAM_BOT_TOKEN:
+        return
+
+    import threading
+    def do_edit():
+        try:
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT chat_id, message_id, event_type, message_type 
+                    FROM telegram_sent_messages 
+                    WHERE product_code = ?
+                """, (product_code,))
+                rows = cursor.fetchall()
+            finally:
+                conn.close()
+            
+            for row in rows:
+                chat_id = row["chat_id"]
+                message_id = row["message_id"]
+                original_event_type = row["event_type"]
+                message_type = row["message_type"]
+                
+                product_data = None
+                conn = get_db_connection()
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT product_name, condition, current_price, save_percent 
+                        FROM products WHERE product_code = ?
+                    """, (product_code,))
+                    p_row = cursor.fetchone()
+                    if p_row:
+                        product_data = dict(p_row)
+                finally:
+                    conn.close()
+                
+                if not product_data:
+                    continue
+                
+                name = _escape_html(product_data.get("product_name", "Unknown Laptop"))
+                price = product_data.get("current_price", "N/A")
+                saving = product_data.get("save_percent", "N/A")
+                condition = _escape_html(product_data.get("condition", settings.DEFAULT_CONDITION))
+                display_name = _truncate_name(clean_model(name))
+                url = f"{settings.LENOVO_BASE_URL}/p/{product_code}"
+                
+                if status == "cart_hold":
+                    title = f"⚠️ [Cart Hold] Laptop Reserved: <a href=\"{url}\">{display_name}</a>"
+                    expires_str = f"at {expire_time} IST" if expire_time else "soon"
+                    body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🛒 Cart Lock expires {expires_str}."
+                elif status == "sold_out":
+                    title = f"🔴 [Sold Out] Laptop Removed: <a href=\"{url}\">{display_name}</a>"
+                    sold_time = time.strftime("%I:%M %p")
+                    body = f"Model: {product_code}\nLast Price: {price} INR (-{saving}%)\nCondition: {condition}\n\nSold out at {sold_time} IST."
+                elif status == "restocked":
+                    if original_event_type == "price_drop":
+                        title = f"📉 Price Drop: <a href=\"{url}\">{display_name}</a>"
+                        body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
+                    else:
+                        title = f"🆕 Laptop Restocked: <a href=\"{url}\">{display_name}</a>"
+                        body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
+                else:
+                    continue
+                
+                new_text = f"<b>{title}</b>\n\n{body}"
+                
+                if message_type == "photo":
+                    url_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/editMessageCaption"
+                    payload = {
+                        "chat_id": chat_id,
+                        "message_id": message_id,
+                        "caption": new_text,
+                        "parse_mode": "HTML"
+                    }
+                else:
+                    url_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/editMessageText"
+                    payload = {
+                        "chat_id": chat_id,
+                        "message_id": message_id,
+                        "text": new_text,
+                        "parse_mode": "HTML",
+                        "disable_web_page_preview": True
+                    }
+                
+                try:
+                    resp = standard_requests.post(url_api, json=payload, timeout=15)
+                    if resp.status_code == 400 and "message to edit not found" in resp.text:
+                        _purge_telegram_message(product_code, chat_id)
+                    elif resp.status_code != 200:
+                        _log(f"[Telegram Edit] Failed to edit message {message_id}: HTTP {resp.status_code} - {resp.text}")
+                except Exception as e:
+                    _log(f"[Telegram Edit] Error editing message: {e}")
+        except Exception as ex:
+            _log(f"[Telegram Edit] Error: {ex}")
+
+    threading.Thread(target=do_edit, daemon=True).start()
+
+def _purge_telegram_message(product_code: str, chat_id: str):
+    try:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM telegram_sent_messages WHERE product_code = ? AND chat_id = ?", (product_code, str(chat_id)))
+            conn.commit()
+            _log(f"[Telegram Edit] Purged deleted message record for {product_code} in chat {chat_id}")
+        finally:
+            conn.close()
+    except Exception as e:
+        _log(f"[Telegram Edit] Error purging message record: {e}")
 
 def send_telegram_batch(batch: List[dict], event_type: str) -> None:
     if not settings.TELEGRAM_ENABLED or not batch:

@@ -14,6 +14,7 @@ export interface FilterState {
   ddrGens: string[];
   touchscreenOnly: boolean;
   showUnavailable: boolean;
+  showCheckoutHolds: boolean;
   storageSizes: string[];
   operatingSystems: string[];
   weights: string[];
@@ -48,6 +49,7 @@ export const DEFAULT_FILTERS: FilterState = {
   gpuModels: [],
   touchscreenOnly: false,
   showUnavailable: false,
+  showCheckoutHolds: true,
 };
 
 interface FilterSidebarProps {
@@ -116,7 +118,8 @@ const activeFilterCount = (f: FilterState) =>
   f.byUses.length +
   f.gpuModels.length +
   (f.touchscreenOnly ? 1 : 0) +
-  (f.showUnavailable ? 1 : 0);
+  (f.showUnavailable ? 1 : 0) +
+  (!f.showCheckoutHolds ? 1 : 0);
 
 const toggle = (arr: string[], val: string) =>
   arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val];
@@ -499,6 +502,16 @@ export const FilterSidebar = ({
               }
             >
               ₹{Math.round(filters.priceMin / 1000)}k – ₹{Math.round(filters.priceMax / 1000)}k ×
+            </button>
+          )}
+          {!filters.showCheckoutHolds && (
+            <button
+              className="chip chip-active"
+              onClick={() =>
+                onFiltersChange({ ...filters, showCheckoutHolds: true })
+              }
+            >
+              Hide Holds ×
             </button>
           )}
         </div>
@@ -975,6 +988,30 @@ export const FilterSidebar = ({
                 onFiltersChange({
                   ...filters,
                   showUnavailable: !filters.showUnavailable,
+                })
+              }
+            >
+              <div className="toggle-thumb" />
+            </div>
+          </label>
+          <label className="toggle-label" style={{ marginTop: "1rem" }}>
+            <span>Show checkout holds</span>
+            <div
+              className={`toggle ${filters.showCheckoutHolds ? "toggle-on" : ""}`}
+              onClick={() =>
+                onFiltersChange({
+                  ...filters,
+                  showCheckoutHolds: !filters.showCheckoutHolds,
+                })
+              }
+              role="switch"
+              aria-checked={filters.showCheckoutHolds}
+              tabIndex={0}
+              onKeyDown={(e) =>
+                e.key === "Enter" &&
+                onFiltersChange({
+                  ...filters,
+                  showCheckoutHolds: !filters.showCheckoutHolds,
                 })
               }
             >

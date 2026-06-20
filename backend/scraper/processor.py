@@ -6,8 +6,8 @@ from backend.config import settings
 from backend.logging_config import _log, current_time
 from backend.db.connection import get_db_connection
 from backend.notifier.ntfy import send_push_notification, _send_batch_summary
-from backend.notifier.discord_bot import dispatch_discord_alerts
-from backend.notifier.telegram import send_telegram_notification, send_telegram_batch
+from backend.notifier.discord_bot import dispatch_discord_alerts, dispatch_discord_edit
+from backend.notifier.telegram import send_telegram_notification, send_telegram_batch, dispatch_telegram_edit
 
 def _compute_listing_duration(first_seen: Optional[str], removed_at: str) -> Optional[str]:
     if not first_seen:
@@ -184,7 +184,7 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                 cursor.execute("""
                     UPDATE products
                     SET last_seen = ?, active = 1, removed_at = NULL,
-                        pending_removal_since = NULL,
+                        pending_removal_since = NULL, debounce_duration = NULL,
                         product_name = ?, original_price = ?,
                         save_percent = ?, specs = ?, rating_star = ?, comment_count = ?, thumbnail_url = ?
                     WHERE product_code = ?
@@ -201,6 +201,10 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                             WHERE product_code = ?
                         """, (code,))
                         _log(f"FLAP RECOVERY: {code} - {name} (reappeared before removal notification)")
+
+                        # Revert alerts on Discord and Telegram back to normal active state
+                        dispatch_discord_edit(code, "restocked")
+                        dispatch_telegram_edit(code, "restocked")
 
                     elif pending_state != 'back_in_stock':
                         # First cycle of a genuine restock — start stability counter.
@@ -267,18 +271,39 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                 active_code = row["product_code"]
                 if active_code not in scanned_codes:
                     _log(f"PRODUCT REMOVED (SOLD OUT): {active_code} - {row['product_name']}")
+                    
+                    # Compute debounce duration based on volatility
+                    volatility = get_product_volatility(cursor, active_code)
+                    if volatility >= settings.TIER2_FLAP_THRESHOLD:
+                        debounce_seconds = settings.TIER2_DEBOUNCE_SECONDS
+                    elif volatility >= settings.TIER1_FLAP_THRESHOLD:
+                        debounce_seconds = settings.TIER1_DEBOUNCE_SECONDS
+                    else:
+                        debounce_seconds = settings.TIER0_DEBOUNCE_SECONDS
+
                     # Set active=0 immediately (real-time frontend truth).
-                    # Use COALESCE to preserve existing pending_removal_since if already set
+                    # Use COALESCE to preserve existing pending_removal_since & debounce_duration if already set
                     # (protects against double-timestamping during a multi-cycle oscillation).
                     # Also reset any in-progress stability counter (product gone mid-window).
                     cursor.execute("""
                         UPDATE products
                         SET active = 0, removed_at = ?,
                             stability_count = 0, pending_state = NULL,
-                            pending_removal_since = COALESCE(pending_removal_since, ?)
+                            pending_removal_since = COALESCE(pending_removal_since, ?),
+                            debounce_duration = COALESCE(debounce_duration, ?)
                         WHERE product_code = ?
-                    """, (now, now, active_code))
+                    """, (now, now, debounce_seconds, active_code))
                     _insert_stock_event(cursor, active_code, "removed", now, row["current_price"])
+
+                    # First-set guard: trigger notification edits only when transition first occurs (was previously active=1)
+                    is_first_hold = (row["pending_removal_since"] is None)
+                    if is_first_hold:
+                        expire_epoch = int(time.time() + debounce_seconds)
+                        expire_time_struct = time.localtime(time.time() + debounce_seconds)
+                        expire_time_str = time.strftime("%I:%M %p", expire_time_struct)
+                        
+                        dispatch_discord_edit(active_code, "cart_hold", expire_epoch=expire_epoch)
+                        dispatch_telegram_edit(active_code, "cart_hold", expire_time=expire_time_str)
  
         # --- Matured removal notifications (fire after 10-minute debounce) ---
         cursor.execute("""
@@ -307,10 +332,14 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
             elapsed = now_ts - pending_ts
             if elapsed >= debounce_seconds:
                 cursor.execute("""
-                    UPDATE products SET pending_removal_since = NULL
+                    UPDATE products SET pending_removal_since = NULL, debounce_duration = NULL
                     WHERE product_code = ?
                 """, (code,))
                 _log(f"REMOVAL CONFIRMED ({int(elapsed)}s elapsed): {code} - {row['product_name']} (volatility: {volatility}, tier: {'2 (muted)' if suppress_alerts else ('1' if volatility >= settings.TIER1_FLAP_THRESHOLD else '0')})")
+
+                # Trigger "Sold Out" alert edits on Discord and Telegram
+                dispatch_discord_edit(code, "sold_out")
+                dispatch_telegram_edit(code, "sold_out")
  
                 if not is_first_run and not suppress_alerts:
                     duration = _compute_listing_duration(row["first_seen"], now)

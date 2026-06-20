@@ -707,7 +707,7 @@ if is_discord_enabled():
             try:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT w.product_code, w.target_price, w.created_at, p.product_name, p.current_price, p.active
+                    SELECT w.product_code, w.target_price, w.created_at, p.product_name, p.current_price, p.active, p.pending_removal_since
                     FROM watchlists w
                     LEFT JOIN products p ON w.product_code = p.product_code
                     WHERE w.user_id = ?
@@ -732,8 +732,14 @@ if is_discord_enabled():
                 target = item.get("target_price")
                 curr = item.get("current_price")
                 active = item.get("active")
+                pending_removal = item.get("pending_removal_since")
                 
-                status = "🟢 Active" if active == 1 else "🔴 Out of Stock / Sold Out"
+                if active == 1:
+                    status = "🟢 Active"
+                elif pending_removal is not None:
+                    status = "🟡 Cart Hold (Pending Sold Out)"
+                else:
+                    status = "🔴 Out of Stock / Sold Out"
                 target_str = f"₹{target:,.0f}" if target is not None else "*Any Price Drop*"
                 curr_str = f"₹{curr:,.0f}" if curr is not None else "N/A"
                 
@@ -1086,6 +1092,27 @@ def dispatch_discord_alerts(
                             msg = await channel.send(content=content, embeds=embeds)
                             if channel.type == discord.ChannelType.news:
                                 asyncio.create_task(_publish_message_non_blocking(channel.id, msg.id))
+                            
+                            # Log sent message IDs to DB for checkout hold mitigation message editing
+                            def save_sent_msg_ids(msg_id, pr_codes, cid, ev_type):
+                                import time
+                                conn = get_db_connection()
+                                try:
+                                    cursor = conn.cursor()
+                                    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+                                    for code in pr_codes:
+                                        cursor.execute("""
+                                            INSERT OR REPLACE INTO discord_sent_messages 
+                                            (product_code, channel_id, message_id, event_type, sent_at)
+                                            VALUES (?, ?, ?, ?, ?)
+                                        """, (code, str(cid), str(msg_id), ev_type, now_str))
+                                    conn.commit()
+                                finally:
+                                    conn.close()
+                            
+                            pr_codes = [p.get("productCode") or p.get("product_code") for p in batch]
+                            asyncio.create_task(asyncio.to_thread(save_sent_msg_ids, msg.id, pr_codes, cid, event_type))
+                            
                             await asyncio.sleep(0.5)
                         except discord.errors.HTTPException as he:
                             if he.status == 429:
@@ -1165,5 +1192,105 @@ def dispatch_watchlist_alerts(
                 _log(f"[Discord Watchlist] Failed to send DM to user {uid}: {ex}")
 
         asyncio.run_coroutine_threadsafe(send_dm(), _discord_bot.loop)
+
+def dispatch_discord_edit(product_code: str, status: str, expire_epoch: Optional[int] = None) -> None:
+    """Trigger non-blocking Discord message edits for state transitions."""
+    if not is_discord_enabled() or not _discord_bot or not _discord_bot.is_ready():
+        return
+
+    async def do_edit():
+        import time
+        try:
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT channel_id, message_id, event_type 
+                    FROM discord_sent_messages 
+                    WHERE product_code = ?
+                """, (product_code,))
+                rows = [dict(r) for r in cursor.fetchall()]
+            finally:
+                conn.close()
+            
+            for row in rows:
+                channel_id = int(row["channel_id"])
+                message_id = int(row["message_id"])
+                original_event_type = row["event_type"]
+                
+                channel = _discord_bot.get_channel(channel_id)
+                if not channel:
+                    try:
+                        channel = await _discord_bot.fetch_channel(channel_id)
+                    except Exception:
+                        continue
+                if not channel:
+                    continue
+                
+                try:
+                    msg = await channel.fetch_message(message_id)
+                except discord.errors.NotFound:
+                    _purge_discord_message(product_code, channel_id)
+                    continue
+                except Exception as e:
+                    _log(f"[Discord Edit] Error fetching message {message_id}: {e}")
+                    continue
+                
+                embeds = msg.embeds
+                modified = False
+                new_embeds = []
+                
+                for emb in embeds:
+                    if emb.url and f"/p/{product_code}" in emb.url:
+                        new_emb = emb.copy()
+                        
+                        if status == "cart_hold":
+                            new_emb.color = discord.Color.from_rgb(255, 191, 0)
+                            desc = new_emb.description or ""
+                            desc_clean = desc.split("\n\n")[-1]
+                            countdown_str = f"<t:{expire_epoch}:R>" if expire_epoch else "15 minutes"
+                            new_emb.description = f"⚠️ **Cart Hold Active** • Reserved in cart. Lock releases {countdown_str}.\n\n{desc_clean}"
+                        
+                        elif status == "sold_out":
+                            new_emb.color = discord.Color.red()
+                            desc = new_emb.description or ""
+                            desc_clean = desc.split("\n\n")[-1]
+                            sold_epoch = int(time.time())
+                            new_emb.description = f"🔴 **Sold Out** • Confirmed sold at <t:{sold_epoch}:t> (<t:{sold_epoch}:R>).\n\n{desc_clean}"
+                        
+                        elif status == "restocked":
+                            new_emb.color = discord.Color.green() if original_event_type in ("added", "back_in_stock") else discord.Color.blue()
+                            desc = new_emb.description or ""
+                            desc_clean = desc.split("\n\n")[-1]
+                            new_emb.description = f"🆕 **Back in Stock** • Listing is active.\n\n{desc_clean}"
+                        
+                        new_embeds.append(new_emb)
+                        modified = True
+                    else:
+                        new_embeds.append(emb)
+                
+                if modified:
+                    try:
+                        await msg.edit(embeds=new_embeds)
+                        await asyncio.sleep(0.5)
+                    except Exception as e:
+                        _log(f"[Discord Edit] Error editing message: {e}")
+        except Exception as ex:
+            _log(f"[Discord Edit] Error: {ex}")
+
+    asyncio.run_coroutine_threadsafe(do_edit(), _discord_bot.loop)
+
+def _purge_discord_message(product_code: str, channel_id: int):
+    try:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM discord_sent_messages WHERE product_code = ? AND channel_id = ?", (product_code, str(channel_id)))
+            conn.commit()
+            _log(f"[Discord Edit] Purged deleted message record for {product_code} in channel {channel_id}")
+        finally:
+            conn.close()
+    except Exception as e:
+        _log(f"[Discord Edit] Error purging message record: {e}")
 
 

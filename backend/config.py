@@ -70,15 +70,21 @@ class Settings:
 
     # Stock Oscillation Filters
     STABILITY_THRESHOLD: int = 2          # Consecutive cycles before a restock notification fires
-    REMOVAL_DEBOUNCE_SECONDS: int = 600   # Seconds before a removal notification fires (10 min)
 
     # Asymmetric Adaptive Debounce
-    TIER0_DEBOUNCE_SECONDS: int = 420
+    TIER0_DEBOUNCE_SECONDS: int = 960
     TIER1_DEBOUNCE_SECONDS: int = 1020
     TIER2_DEBOUNCE_SECONDS: int = 2100
     FLAP_WINDOW_HOURS: int = 6
     TIER1_FLAP_THRESHOLD: int = 1
     TIER2_FLAP_THRESHOLD: int = 3
+
+    @staticmethod
+    def _get_env_int(key: str, default: int) -> int:
+        try:
+            return int(os.environ.get(key, str(default)))
+        except ValueError:
+            return default
 
     @classmethod
     def load(cls) -> "Settings":
@@ -98,14 +104,11 @@ class Settings:
         db_file = directory / "data" / "lenovo_tracker.db"
         log_file = directory / "data" / "lenovo_tracker.log"
 
-        poll_interval = int(os.environ.get("POLL_INTERVAL", "60"))
+        poll_interval = cls._get_env_int("POLL_INTERVAL", 60)
         admin_api_key = os.environ.get("ADMIN_API_KEY")
 
         discord_bot_token = os.environ.get("DISCORD_BOT_TOKEN")
-        try:
-            owner_user_id = int(os.environ.get("OWNER_USER_ID", "0"))
-        except ValueError:
-            owner_user_id = 0
+        owner_user_id = cls._get_env_int("OWNER_USER_ID", 0)
 
         # Try to detect Discord installation
         try:
@@ -120,10 +123,7 @@ class Settings:
         ntfy_topic = os.environ.get("NTFY_TOPIC", "lenovo_outlet_india_tracker_alert")
         ntfy_topic_removed = os.environ.get("NTFY_TOPIC_REMOVED", "lenovo_outlet_india_tracker_alert_removed")
         
-        try:
-            notification_batch_threshold = int(os.environ.get("NOTIFICATION_BATCH_THRESHOLD", "5"))
-        except ValueError:
-            notification_batch_threshold = 5
+        notification_batch_threshold = cls._get_env_int("NOTIFICATION_BATCH_THRESHOLD", 5)
 
         retry_delays = [3.0, 6.0]
         
@@ -192,50 +192,14 @@ class Settings:
             else:
                 telegram_channel_url = "https://t.me/example"
 
-        try:
-            max_failed_pages = int(os.environ.get("MAX_FAILED_PAGES", "2"))
-        except ValueError:
-            max_failed_pages = 2
-
-        try:
-            stability_threshold = int(os.environ.get("STABILITY_THRESHOLD", "2"))
-        except ValueError:
-            stability_threshold = 2
-
-        try:
-            removal_debounce_seconds = int(os.environ.get("REMOVAL_DEBOUNCE_SECONDS", "600"))
-        except ValueError:
-            removal_debounce_seconds = 600
-
-        try:
-            tier0_debounce_seconds = int(os.environ.get("TIER0_DEBOUNCE_SECONDS", "420"))
-        except ValueError:
-            tier0_debounce_seconds = 420
-
-        try:
-            tier1_debounce_seconds = int(os.environ.get("TIER1_DEBOUNCE_SECONDS", "1020"))
-        except ValueError:
-            tier1_debounce_seconds = 1020
-
-        try:
-            tier2_debounce_seconds = int(os.environ.get("TIER2_DEBOUNCE_SECONDS", "2100"))
-        except ValueError:
-            tier2_debounce_seconds = 2100
-
-        try:
-            flap_window_hours = int(os.environ.get("FLAP_WINDOW_HOURS", "6"))
-        except ValueError:
-            flap_window_hours = 6
-
-        try:
-            tier1_flap_threshold = int(os.environ.get("TIER1_FLAP_THRESHOLD", "1"))
-        except ValueError:
-            tier1_flap_threshold = 1
-
-        try:
-            tier2_flap_threshold = int(os.environ.get("TIER2_FLAP_THRESHOLD", "3"))
-        except ValueError:
-            tier2_flap_threshold = 3
+        max_failed_pages = cls._get_env_int("MAX_FAILED_PAGES", 2)
+        stability_threshold = cls._get_env_int("STABILITY_THRESHOLD", 2)
+        tier0_debounce_seconds = cls._get_env_int("TIER0_DEBOUNCE_SECONDS", 960)
+        tier1_debounce_seconds = cls._get_env_int("TIER1_DEBOUNCE_SECONDS", 1020)
+        tier2_debounce_seconds = cls._get_env_int("TIER2_DEBOUNCE_SECONDS", 2100)
+        flap_window_hours = cls._get_env_int("FLAP_WINDOW_HOURS", 6)
+        tier1_flap_threshold = cls._get_env_int("TIER1_FLAP_THRESHOLD", 1)
+        tier2_flap_threshold = cls._get_env_int("TIER2_FLAP_THRESHOLD", 3)
 
         return cls(
             PORT=port,
@@ -267,7 +231,6 @@ class Settings:
             TELEGRAM_CHANNEL_URL=telegram_channel_url,
             MAX_FAILED_PAGES=max_failed_pages,
             STABILITY_THRESHOLD=stability_threshold,
-            REMOVAL_DEBOUNCE_SECONDS=removal_debounce_seconds,
             TIER0_DEBOUNCE_SECONDS=tier0_debounce_seconds,
             TIER1_DEBOUNCE_SECONDS=tier1_debounce_seconds,
             TIER2_DEBOUNCE_SECONDS=tier2_debounce_seconds,
