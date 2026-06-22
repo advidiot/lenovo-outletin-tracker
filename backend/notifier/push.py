@@ -161,10 +161,13 @@ def notify_back_in_stock(product: dict) -> None:
     price = product.get("finalPrice", "N/A")
     saving = product.get("savePercent", 0)
     
+    restock_dur = product.get("_restock_duration")
+    body_suffix = f" (Restocked after {restock_dur})" if restock_dur else ""
+    
     payload = {
         "event_type": "back_in_stock",
         "title": "Laptop Back in Stock",
-        "body": f"{name} is back! Price: {price} INR (-{saving}%)",
+        "body": f"{name} is back! Price: {price} INR (-{saving}%){body_suffix}",
         "product_code": code,
         "price": price,
         "save_percent": saving
@@ -253,10 +256,12 @@ def notify_batch(products: List[dict], event_type: str) -> None:
                         "save_percent": saving
                     }
                 else:
+                    restock_dur = p.get("_restock_duration")
+                    body_suffix = f" (Restocked after {restock_dur})" if restock_dur else ""
                     payload = {
                         "event_type": "back_in_stock",
                         "title": "Laptop Back in Stock",
-                        "body": f"{name} is back! Price: {price} INR (-{saving}%)",
+                        "body": f"{name} is back! Price: {price} INR (-{saving}%){body_suffix}",
                         "product_code": code,
                         "price": price,
                         "save_percent": saving

@@ -144,12 +144,16 @@ def send_telegram_notification(
     event_type: str = "added",
     old_price: Optional[float] = None,
     listing_duration: Optional[str] = None,
+    restock_duration: Optional[str] = None,
 ) -> None:
     if not settings.TELEGRAM_ENABLED:
         return
         
     if listing_duration is None:
         listing_duration = product.get("_listing_duration")
+        
+    if restock_duration is None:
+        restock_duration = product.get("_restock_duration")
         
     name = _escape_html(product.get("productName", "Unknown Laptop"))
     price = product.get("finalPrice", "N/A")
@@ -175,7 +179,10 @@ def send_telegram_notification(
         body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "restock":
         title = f"Laptop Restocked: <a href=\"{url}\">{display_name}</a>"
-        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
+        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}"
+        if restock_duration:
+            body += f"\nRestocked after: {restock_duration}"
+        body += f"\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "price_drop":
         title = f"Price Drop: <a href=\"{url}\">{display_name}</a>"
         body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
@@ -398,7 +405,9 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
             else:
                 url = settings.LENOVO_LAPTOPS_URL
 
-            item_lines.append(f"• <a href=\"{url}\">{name}</a> — {price} INR ({code})")
+            duration = p.get("_restock_duration")
+            duration_str = f" (Restocked after: {duration})" if duration else ""
+            item_lines.append(f"• <a href=\"{url}\">{name}</a> — {price} INR ({code}){duration_str}")
         body = "\n".join(item_lines)
     elif event_type == "removed":
         title = f"{count} Laptops Removed"

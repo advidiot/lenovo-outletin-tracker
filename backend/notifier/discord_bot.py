@@ -918,6 +918,10 @@ def _build_product_embed(product: dict, event_type: str, old_price: Optional[flo
         duration = product.get("_listing_duration")
         if duration:
             embed.add_field(name="⏱️ Listed for", value=duration, inline=True)
+    elif event_type == "added":
+        restock_duration = product.get("_restock_duration")
+        if restock_duration:
+            embed.add_field(name="⏱️ Restocked after", value=restock_duration, inline=True)
  
     if thumbnail:
         embed.set_thumbnail(url=thumbnail)
@@ -989,6 +993,10 @@ async def _send_compact_alerts(
             duration = p.get("_listing_duration")
             if duration:
                 duration_str = f" — Listed for: {duration}"
+        elif event_type == "added":
+            restock_duration = p.get("_restock_duration")
+            if restock_duration:
+                duration_str = f" — Restocked after: {restock_duration}"
  
         lines.append(f"• [{action}] {name} — {price_str} — {savings_str}{duration_str} — [Store Link]({url})")
 

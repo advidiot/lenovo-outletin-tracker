@@ -35,7 +35,7 @@ class TestDatabaseMigrations(unittest.TestCase):
             # Check schema version
             cursor.execute("SELECT version FROM schema_version")
             version = cursor.fetchone()[0]
-            self.assertEqual(version, 7)
+            self.assertEqual(version, 10)
 
             # Check if discord_subscriptions table has migration 7 columns
             cursor.execute("PRAGMA table_info(discord_subscriptions)")

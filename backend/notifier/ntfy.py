@@ -56,7 +56,11 @@ def send_push_notification(
     ntfy_type: str = "added",
     old_price: Optional[float] = None,
     listing_duration: Optional[str] = None,
+    restock_duration: Optional[str] = None,
 ) -> None:
+    if restock_duration is None:
+        restock_duration = product.get("_restock_duration")
+
     name = product.get("productName", "Unknown Laptop")
     price = product.get("finalPrice", "N/A")
     saving = product.get("savePercent", "N/A")
@@ -75,9 +79,14 @@ def send_push_notification(
     display_name = _truncate_name(name)
 
     if ntfy_type == "added":
-        title = f"Laptop Added: {display_name}"
-        message = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}"
-        tags = "new,laptop,computer,bell"
+        if restock_duration:
+            title = f"Laptop Restocked: {display_name}"
+            message = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\nRestocked after: {restock_duration}"
+            tags = "arrows_counterclockwise,laptop,computer,bell"
+        else:
+            title = f"Laptop Added: {display_name}"
+            message = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}"
+            tags = "new,laptop,computer,bell"
     elif ntfy_type == "price_drop":
         title = f"Price Drop: {display_name}"
         message = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%"
@@ -129,14 +138,16 @@ def _send_batch_summary(
     count = len(batch)
 
     if ntfy_type == "added":
-        title = f"{count} Laptops Added"
+        title = f"{count} Laptops Added / Restocked"
         tags = "new,laptop,bell"
-        lines = [f"{count} new laptops detected:\n"]
+        lines = [f"{count} new or restocked laptops detected:\n"]
         for p in batch[:15]:
             code = p.get("productCode", "?")
             name = _truncate_name(p.get("productName", "Unknown"), 30)
             price = p.get("finalPrice", "?")
-            lines.append(f"• {name} — {price} INR ({code})")
+            restock_dur = p.get("_restock_duration")
+            duration_str = f" (Restocked after: {restock_dur})" if restock_dur else ""
+            lines.append(f"• {name} — {price} INR ({code}){duration_str}")
         if count > 15:
             lines.append(f"…and {count - 15} more.")
     elif ntfy_type == "removed":

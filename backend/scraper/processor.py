@@ -223,6 +223,19 @@ def process_scanned_products(products: list[dict], is_first_run: bool, partial_s
                                 UPDATE products SET stability_count = 0, pending_state = NULL
                                 WHERE product_code = ?
                             """, (code,))
+                            
+                            # Query last sold out timestamp from stock_history
+                            cursor.execute("""
+                                SELECT timestamp FROM stock_history
+                                WHERE product_code = ? AND event_type = 'removed'
+                                ORDER BY timestamp DESC, id DESC LIMIT 1
+                            """, (code,))
+                            sh_row = cursor.fetchone()
+                            if sh_row and sh_row[0]:
+                                restock_dur = _compute_listing_duration(sh_row[0], now)
+                                if restock_dur:
+                                    p["_restock_duration"] = restock_dur
+
                             _insert_price_history(cursor, code, now, current_price, calculated_save_percent)
                             _insert_stock_event(cursor, code, "back_in_stock", now, current_price)
                             _log(f"PRODUCT BACK IN STOCK (confirmed after {new_count} cycles): {code} - {name}")
