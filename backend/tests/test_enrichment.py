@@ -7,9 +7,27 @@ from backend.scraper.enrichment import (
     parse_ddr_gen,
     parse_storage_type,
     parse_processor_range,
+    clean_cpu_model,
+    clean_gpu_model,
 )
 
 class TestEnrichmentParsers(unittest.TestCase):
+    def test_clean_cpu_model(self):
+        self.assertEqual(clean_cpu_model("AMD Ryzen™ 3 7330U Processor (2.30 GHz up to 4.30 GHz)"), "AMD Ryzen 3 7330U")
+        self.assertEqual(clean_cpu_model("13th Generation Intel® Core™ i3-1315U Processor (E-cores up to 3.30 GHz P-cores up to 4.50 GHz)"), "Intel Core i3-1315U")
+        self.assertEqual(clean_cpu_model("13th Generation Intel® Core™ i7-1365U vPro® Processor (E-cores up to 3.90 GHz P-cores up to 5.20 GHz)"), "Intel Core i7-1365U vPro")
+        self.assertEqual(clean_cpu_model("Intel® Core™ Ultra 5 125H Processor (E-cores up to 3.60 GHz P-cores up to 4.50 GHz)"), "Intel Core Ultra 5 125H")
+        self.assertEqual(clean_cpu_model("Snapdragon® X Plus X1P-42-100 Processor (3.40 GHz )"), "Snapdragon X Plus X1P-42-100")
+        self.assertEqual(clean_cpu_model(None), None)
+
+    def test_clean_gpu_model(self):
+        self.assertEqual(clean_gpu_model("Integrated AMD Radeon™ 610M"), "AMD Radeon 610M")
+        self.assertEqual(clean_gpu_model("NVIDIA® GeForce RTX™ 2050 Laptop GPU 4GB GDDR6"), "NVIDIA GeForce RTX 2050 4GB")
+        self.assertEqual(clean_gpu_model("NVIDIA® Geforce RTX™ 5070 Ti Laptop GPU 12GB GDDR7"), "NVIDIA GeForce RTX 5070 Ti 12GB")
+        self.assertEqual(clean_gpu_model("Integrated Intel® Arc™ 140V GPU"), "Intel Arc 140V GPU")
+        self.assertEqual(clean_gpu_model("Integrated Intel® Iris® Xe Graphics"), "Intel Iris Xe Graphics")
+        self.assertEqual(clean_gpu_model(None), None)
+
     def test_parse_gpu_type(self):
         self.assertEqual(parse_gpu_type("Integrated AMD Radeon™ Graphics"), "Integrated")
         self.assertEqual(parse_gpu_type("NVIDIA® GeForce RTX™ 3050 A Laptop GPU 4GB GDDR6"), "Dedicated")

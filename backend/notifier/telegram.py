@@ -5,7 +5,7 @@ from backend.logging_config import _log
 from backend.scraper.api import _get_session
 import requests as standard_requests
 from backend.db.connection import get_db_connection
-from backend.scraper.enrichment import clean_model
+from backend.scraper.enrichment import clean_model, get_product_cpu_gpu
 
 def _truncate_name(name: str, max_len: int = 40) -> str:
     if len(name) <= max_len:
@@ -174,21 +174,25 @@ def send_telegram_notification(
     else:
         url = settings.LENOVO_LAPTOPS_URL
 
+    cpu, gpu = get_product_cpu_gpu(product)
+    cpu = _escape_html(cpu)
+    gpu = _escape_html(gpu)
+
     if event_type == "added":
         title = f"Laptop Added: <a href=\"{url}\">{display_name}</a>"
-        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
+        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n⚙️ CPU: {cpu}\n🎮 GPU: {gpu}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "restock":
         title = f"Laptop Restocked: <a href=\"{url}\">{display_name}</a>"
-        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}"
+        body = f"Model: {code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n⚙️ CPU: {cpu}\n🎮 GPU: {gpu}"
         if restock_duration:
             body += f"\nRestocked after: {restock_duration}"
         body += f"\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "price_drop":
         title = f"Price Drop: <a href=\"{url}\">{display_name}</a>"
-        body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
+        body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%\n⚙️ CPU: {cpu}\n🎮 GPU: {gpu}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "price_hike":
         title = f"Price Hike: <a href=\"{url}\">{display_name}</a>"
-        body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
+        body = f"Model: {code}\nNew Price: {price} INR (Was {old_price} INR)\nSavings: -{saving}%\n⚙️ CPU: {cpu}\n🎮 GPU: {gpu}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
     elif event_type == "removed":
         title = f"Laptop Removed: <a href=\"{url}\">{display_name}</a>"
         lines = [f"Model: {code}"]
@@ -196,6 +200,8 @@ def send_telegram_notification(
             lines.append(f"Last Price: {price} INR (-{saving}%)")
         if condition:
             lines.append(f"Condition: {condition}")
+        lines.append(f"⚙️ CPU: {cpu}")
+        lines.append(f"🎮 GPU: {gpu}")
         if listing_duration:
             lines.append(f"Listed for: {listing_duration}")
         lines.append("This item has been removed or sold out.")
@@ -293,21 +299,25 @@ def dispatch_telegram_edit(product_code: str, status: str, expire_time: Optional
                 display_name = _truncate_name(clean_model(name))
                 url = f"{settings.LENOVO_BASE_URL}/p/{product_code}"
                 
+                cpu, gpu = get_product_cpu_gpu({"product_code": product_code})
+                cpu = _escape_html(cpu)
+                gpu = _escape_html(gpu)
+
                 if status == "cart_hold":
                     title = f"⚠️ [Cart Hold] Laptop Reserved: <a href=\"{url}\">{display_name}</a>"
                     expires_str = f"at {expire_time} IST" if expire_time else "soon"
-                    body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🛒 Cart Lock expires {expires_str}."
+                    body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n⚙️ CPU: {cpu}\n🎮 GPU: {gpu}\n\n🛒 Cart Lock expires {expires_str}."
                 elif status == "sold_out":
                     title = f"🔴 [Sold Out] Laptop Removed: <a href=\"{url}\">{display_name}</a>"
                     sold_time = time.strftime("%I:%M %p")
-                    body = f"Model: {product_code}\nLast Price: {price} INR (-{saving}%)\nCondition: {condition}\n\nSold out at {sold_time} IST."
+                    body = f"Model: {product_code}\nLast Price: {price} INR (-{saving}%)\nCondition: {condition}\n⚙️ CPU: {cpu}\n🎮 GPU: {gpu}\n\nSold out at {sold_time} IST."
                 elif status == "restocked":
                     if original_event_type == "price_drop":
                         title = f"📉 Price Drop: <a href=\"{url}\">{display_name}</a>"
-                        body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
+                        body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n⚙️ CPU: {cpu}\n🎮 GPU: {gpu}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
                     else:
                         title = f"🆕 Laptop Restocked: <a href=\"{url}\">{display_name}</a>"
-                        body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
+                        body = f"Model: {product_code}\nPrice: {price} INR (-{saving}%)\nCondition: {condition}\n⚙️ CPU: {cpu}\n🎮 GPU: {gpu}\n\n🔗 <a href=\"{url}\">Buy on Lenovo Store</a>"
                 else:
                     continue
                 
@@ -383,7 +393,10 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
             else:
                 url = settings.LENOVO_LAPTOPS_URL
 
-            item_lines.append(f"• <a href=\"{url}\">{name}</a> — {price} INR ({code})")
+            cpu, gpu = get_product_cpu_gpu(p)
+            cpu = _escape_html(cpu)
+            gpu = _escape_html(gpu)
+            item_lines.append(f"• <a href=\"{url}\">{name}</a> — {price} INR ({code}) — <i>{cpu} | {gpu}</i>")
         body = "\n".join(item_lines)
     elif event_type == "restock":
         title = f"{count} Laptops Restocked"
@@ -407,7 +420,10 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
 
             duration = p.get("_restock_duration")
             duration_str = f" (Restocked after: {duration})" if duration else ""
-            item_lines.append(f"• <a href=\"{url}\">{name}</a> — {price} INR ({code}){duration_str}")
+            cpu, gpu = get_product_cpu_gpu(p)
+            cpu = _escape_html(cpu)
+            gpu = _escape_html(gpu)
+            item_lines.append(f"• <a href=\"{url}\">{name}</a> — {price} INR ({code}){duration_str} — <i>{cpu} | {gpu}</i>")
         body = "\n".join(item_lines)
     elif event_type == "removed":
         title = f"{count} Laptops Removed"
@@ -430,7 +446,10 @@ def send_telegram_batch(batch: List[dict], event_type: str) -> None:
  
             duration = p.get("_listing_duration")
             duration_str = f" (Listed for: {duration})" if duration else ""
-            item_lines.append(f"• <a href=\"{url}\">{name}</a> ({code}){duration_str}")
+            cpu, gpu = get_product_cpu_gpu(p)
+            cpu = _escape_html(cpu)
+            gpu = _escape_html(gpu)
+            item_lines.append(f"• <a href=\"{url}\">{name}</a> ({code}){duration_str} — <i>{cpu} | {gpu}</i>")
         body = "\n".join(item_lines)
     else:
         title = f"{count} Tracker Events"

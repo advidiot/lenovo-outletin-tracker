@@ -3,6 +3,8 @@ from typing import Optional, List, Dict, Any
 from backend.config import settings
 from backend.logging_config import _log, current_time
 from backend.db.connection import get_db_connection
+from backend.scraper.enrichment import get_product_cpu_gpu
+
 
 try:
     import discord
@@ -913,6 +915,10 @@ def _build_product_embed(product: dict, event_type: str, old_price: Optional[flo
     embed.add_field(name="🏷️ Savings", value=f"{savings}%" if savings is not None else "0%", inline=True)
     embed.add_field(name="📦 Condition", value=condition, inline=True)
     embed.add_field(name="🔗 Product Code", value=f"`{code}`", inline=True)
+    
+    cpu, gpu = get_product_cpu_gpu(product)
+    embed.add_field(name="⚙️ CPU", value=cpu, inline=True)
+    embed.add_field(name="🎮 GPU", value=gpu, inline=True)
  
     if event_type == "removed":
         duration = product.get("_listing_duration")
@@ -997,8 +1003,9 @@ async def _send_compact_alerts(
             restock_duration = p.get("_restock_duration")
             if restock_duration:
                 duration_str = f" — Restocked after: {restock_duration}"
- 
-        lines.append(f"• [{action}] {name} — {price_str} — {savings_str}{duration_str} — [Store Link]({url})")
+
+        cpu, gpu = get_product_cpu_gpu(p)
+        lines.append(f"• [{action}] {name} ({code}) — {price_str} — {savings_str}{duration_str}\n  ⚙️ {cpu} | 🎮 {gpu} — [Store Link]({url})")
 
     # Send messages in chunks of 2000 chars
     current_msg = header

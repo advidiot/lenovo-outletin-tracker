@@ -242,6 +242,79 @@ def parse_processor_series(proc_str: Optional[str]) -> Optional[str]:
         
     return "Other"
 
+def clean_cpu_model(proc_str: Optional[str]) -> Optional[str]:
+    if not proc_str:
+        return None
+    s = proc_str.replace("®", "").replace("™", "")
+    s = re.sub(r'\s+', ' ', s).strip()
+    # Strip generation prefix if present
+    s = re.sub(r'(?i)^\s*\d+(?:th|st|nd|rd)\s+Gen(?:eration)?\s+', '', s)
+    # Extract portion before 'Processor'
+    match = re.search(r'(.*?)\s+Processor', s, re.IGNORECASE)
+    if match:
+        s = match.group(1).strip()
+    return s
+
+def clean_gpu_model(gpu_str: Optional[str]) -> Optional[str]:
+    if not gpu_str:
+        return None
+    s = gpu_str.replace("®", "").replace("™", "")
+    s = re.sub(r'\s+', ' ', s).strip()
+    s = re.sub(r'(?i)^\s*(Integrated|Discrete|Dedicated)\s+', '', s)
+    s = re.sub(r'(?i)geforce', 'GeForce', s)
+    # Simplify dedicated GPU laptop suffixes while keeping VRAM (e.g. Laptop GPU 8GB GDDR6 -> 8GB)
+    s = re.sub(r'(?i)\s+Laptop\s+GPU\s+(\d+GB)\s+GDDR\d+', r' \1', s)
+    return s
+
+def get_product_cpu_gpu(product: dict) -> tuple[str, str]:
+    # Try to extract cpu and gpu from product first
+    cpu = None
+    gpu = None
+    
+    # Check specs sub-dict or full_specs if present in product dict
+    product_specs = product.get("specs") or product.get("full_specs")
+    if isinstance(product_specs, dict):
+        cpu_raw = product_specs.get("Processor")
+        gpu_raw = product_specs.get("Graphic Card")
+        if cpu_raw:
+            cpu = clean_cpu_model(cpu_raw)
+        if gpu_raw:
+            gpu = clean_gpu_model(gpu_raw)
+            
+    # Check classification list
+    classification = product.get("classification")
+    if not cpu or not gpu:
+        if classification and isinstance(classification, list):
+            for item in classification:
+                if isinstance(item, dict):
+                    if item.get("a") == "Processor":
+                        cpu = clean_cpu_model(item.get("b"))
+                    elif item.get("a") == "Graphic Card":
+                        gpu = clean_gpu_model(item.get("b"))
+                        
+    # If not found, check DB
+    if not cpu or not gpu:
+        code = product.get("productCode") or product.get("product_code")
+        if code:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT specs FROM products WHERE product_code = ?", (code,))
+                row = cursor.fetchone()
+                if row and row[0]:
+                    specs_dict = json.loads(row[0])
+                    if not cpu:
+                        cpu = clean_cpu_model(specs_dict.get("Processor"))
+                    if not gpu:
+                        gpu = clean_gpu_model(specs_dict.get("Graphic Card"))
+            except Exception:
+                pass
+            finally:
+                if 'conn' in locals():
+                    conn.close()
+                    
+    return cpu or "Unknown CPU", gpu or "Unknown GPU"
+
 def parse_ddr_gen(mem_str: Optional[str]) -> Optional[str]:
     if not mem_str:
         return None

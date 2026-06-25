@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any
 from backend.config import settings
 from backend.logging_config import _log
 from backend.db.connection import get_db_connection
+from backend.scraper.enrichment import get_product_cpu_gpu
 
 # Try importing pywebpush
 try:
@@ -134,10 +135,11 @@ def notify_new_listing(product: dict) -> None:
     price = product.get("finalPrice", "N/A")
     saving = product.get("savePercent", 0)
     
+    cpu, gpu = get_product_cpu_gpu(product)
     payload = {
         "event_type": "new_listing",
         "title": "New Laptop Listed",
-        "body": f"{name} is now available for {price} INR (-{saving}%)",
+        "body": f"{name} is now available for {price} INR (-{saving}%) | CPU: {cpu} | GPU: {gpu}",
         "product_code": code,
         "price": price,
         "save_percent": saving
@@ -164,10 +166,11 @@ def notify_back_in_stock(product: dict) -> None:
     restock_dur = product.get("_restock_duration")
     body_suffix = f" (Restocked after {restock_dur})" if restock_dur else ""
     
+    cpu, gpu = get_product_cpu_gpu(product)
     payload = {
         "event_type": "back_in_stock",
         "title": "Laptop Back in Stock",
-        "body": f"{name} is back! Price: {price} INR (-{saving}%){body_suffix}",
+        "body": f"{name} is back! Price: {price} INR (-{saving}%){body_suffix} | CPU: {cpu} | GPU: {gpu}",
         "product_code": code,
         "price": price,
         "save_percent": saving
@@ -195,10 +198,11 @@ def notify_price_drop(product: dict, old_price: float, new_price: float) -> None
     if old_price > 0:
         drop_percent = round((old_price - new_price) / old_price * 100, 2)
         
+    cpu, gpu = get_product_cpu_gpu(product)
     payload = {
         "event_type": "price_drop",
         "title": "Price Drop Alert",
-        "body": f"{name} dropped to {new_price} INR (Was {old_price} INR)",
+        "body": f"{name} dropped to {new_price} INR (Was {old_price} INR) | CPU: {cpu} | GPU: {gpu}",
         "product_code": code,
         "price": new_price,
         "old_price": old_price,
@@ -246,11 +250,12 @@ def notify_batch(products: List[dict], event_type: str) -> None:
                 name = p.get("productName", "Unknown Laptop")
                 price = p.get("finalPrice", "N/A")
                 saving = p.get("savePercent", 0)
+                cpu, gpu = get_product_cpu_gpu(p)
                 if event_type == "new_listing":
                     payload = {
                         "event_type": "new_listing",
                         "title": "New Laptop Listed",
-                        "body": f"{name} is now available for {price} INR (-{saving}%)",
+                        "body": f"{name} is now available for {price} INR (-{saving}%) | CPU: {cpu} | GPU: {gpu}",
                         "product_code": code,
                         "price": price,
                         "save_percent": saving
@@ -261,7 +266,7 @@ def notify_batch(products: List[dict], event_type: str) -> None:
                     payload = {
                         "event_type": "back_in_stock",
                         "title": "Laptop Back in Stock",
-                        "body": f"{name} is back! Price: {price} INR (-{saving}%){body_suffix}",
+                        "body": f"{name} is back! Price: {price} INR (-{saving}%){body_suffix} | CPU: {cpu} | GPU: {gpu}",
                         "product_code": code,
                         "price": price,
                         "save_percent": saving
