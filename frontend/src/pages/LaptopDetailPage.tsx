@@ -75,6 +75,12 @@ const FIELD_LABELS: Record<string, string> = {
   "first_seen": "First Tracked",
 };
 
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
 const ChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -120,6 +126,30 @@ export const LaptopDetailPage = ({
   const isStarred = watchlist.includes(code);
   const isCompared = compareList.some((c) => c["product-number"] === code);
   const available = laptop?.["available"] as boolean | undefined;
+
+  // Hold timer state
+  const initialSeconds = laptop ? Number(laptop["hold_expires_in_seconds"] || 0) : 0;
+  const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
+
+  useEffect(() => {
+    setSecondsLeft(initialSeconds);
+  }, [initialSeconds]);
+
+  const isHold = laptop ? (!!laptop["in_cart_hold"] && secondsLeft > 0) : false;
+
+  useEffect(() => {
+    if (!isHold) return;
+    const interval = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isHold]);
 
   useEffect(() => {
     if (!code) return;
@@ -186,10 +216,14 @@ export const LaptopDetailPage = ({
         {/* Info */}
         <div className="detail-hero-info">
           <div className="detail-badges">
-            {available !== undefined && (
-              <span className={`badge ${available ? "badge-green" : "badge-red"}`}>
-                {available ? "In Stock" : "Sold Out"}
-              </span>
+            {isHold ? (
+              <span className="badge badge-hold">🛒 Cart Hold ({formatTime(secondsLeft)})</span>
+            ) : (
+              available !== undefined && (
+                <span className={`badge ${available ? "badge-green" : "badge-red"}`}>
+                  {available ? "In Stock" : "Sold Out"}
+                </span>
+              )
             )}
             {laptop["product-condition"] && (
               <span className="badge badge-amber">
@@ -212,7 +246,21 @@ export const LaptopDetailPage = ({
           </div>
 
           <div className="detail-actions">
-            {available ? (
+            {isHold ? (
+              <>
+                <button className="btn btn-lg btn-hold" disabled>
+                  Cart Hold ({formatTime(secondsLeft)})
+                </button>
+                <a
+                  href={`https://www.lenovo.com/in/outletin/en/p/${code}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary btn-lg"
+                >
+                  View Store Listing ↗
+                </a>
+              </>
+            ) : available ? (
               <a
                 href={`https://www.lenovo.com/in/outletin/en/p/${code}`}
                 target="_blank"
@@ -222,9 +270,19 @@ export const LaptopDetailPage = ({
                 Buy on Lenovo Store ↗
               </a>
             ) : (
-              <button className="btn btn-lg" style={{ opacity: 0.5, cursor: "not-allowed" }} disabled>
-                Sold Out
-              </button>
+              <>
+                <button className="btn btn-lg" style={{ opacity: 0.5, cursor: "not-allowed" }} disabled>
+                  Sold Out
+                </button>
+                <a
+                  href={`https://www.lenovo.com/in/outletin/en/p/${code}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary btn-lg"
+                >
+                  View Store Listing ↗
+                </a>
+              </>
             )}
 
             <button

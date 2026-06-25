@@ -1252,24 +1252,48 @@ def dispatch_discord_edit(product_code: str, status: str, expire_epoch: Optional
                     if emb.url and f"/p/{product_code}" in emb.url:
                         new_emb = emb.copy()
                         
-                        if status == "cart_hold":
-                            new_emb.color = discord.Color.from_rgb(255, 191, 0)
-                            desc = new_emb.description or ""
+                        desc = new_emb.description or ""
+                        if "\n\n" in desc:
                             desc_clean = desc.split("\n\n")[-1]
+                        else:
+                            desc_clean = desc
+                        
+                        # Rebuild fields to strip stale information
+                        fields_to_process = list(emb.fields)
+                        new_emb.clear_fields()
+                        for field in fields_to_process:
+                            if status == "cart_hold":
+                                if field.name not in ("⏱️ Listed for", "⏱️ Restocked after"):
+                                    new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
+                            elif status == "restocked":
+                                if field.name not in ("⏱️ Listed for", "⏱️ Restocked after", "📉 Old Price"):
+                                    new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
+                            else:
+                                new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
+
+                        if status == "cart_hold":
+                            new_emb.title = "⚠️ Laptop In Someone's Cart"
+                            new_emb.color = discord.Color.from_rgb(255, 191, 0)
                             countdown_str = f"<t:{expire_epoch}:R>" if expire_epoch else "15 minutes"
                             new_emb.description = f"⚠️ **Cart Hold Active** • Reserved in cart. Lock releases {countdown_str}.\n\n{desc_clean}"
                         
                         elif status == "sold_out":
+                            new_emb.title = "❌ Laptop Removed / Sold Out"
                             new_emb.color = discord.Color.red()
-                            desc = new_emb.description or ""
-                            desc_clean = desc.split("\n\n")[-1]
                             sold_epoch = int(time.time())
                             new_emb.description = f"🔴 **Sold Out** • Confirmed sold at <t:{sold_epoch}:t> (<t:{sold_epoch}:R>).\n\n{desc_clean}"
                         
                         elif status == "restocked":
-                            new_emb.color = discord.Color.green() if original_event_type in ("added", "back_in_stock") else discord.Color.blue()
-                            desc = new_emb.description or ""
-                            desc_clean = desc.split("\n\n")[-1]
+                            if original_event_type == "price_drop":
+                                new_emb.title = "📉 Price Drop Alert"
+                                new_emb.color = discord.Color.blue()
+                            elif original_event_type == "price_hike":
+                                new_emb.title = "📈 Price Increase"
+                                new_emb.color = discord.Color.gold()
+                            else:
+                                new_emb.title = "🆕 Laptop Added / Back in Stock"
+                                new_emb.color = discord.Color.green()
+                            
                             new_emb.description = f"🆕 **Back in Stock** • Listing is active.\n\n{desc_clean}"
                         
                         new_embeds.append(new_emb)
