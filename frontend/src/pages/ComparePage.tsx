@@ -64,6 +64,7 @@ export const ComparePage = ({ compareList, onRemove, onClear }: ComparePageProps
   const navigate = useNavigate();
   const [priceHistories, setPriceHistories] = useState<Record<string, { timestamp: string, price: number }[]>>({});
   const [loading, setLoading] = useState(false);
+  const [hideMatching, setHideMatching] = useState(false);
 
   const colors = ["#06b6d4", "#a855f7", "#f59e0b", "#f43f5e"];
 
@@ -141,6 +142,16 @@ export const ComparePage = ({ compareList, onRemove, onClear }: ComparePageProps
     });
   }, [priceHistories, compareList]);
 
+  const visibleSpecs = hideMatching
+    ? COMPARE_SPECS.filter((spec) => {
+        if (spec.field === "__image__") return true;
+        const vals = compareList.map((l) =>
+          String(spec.format ? spec.format(l[spec.field]) : (l[spec.field] ?? "")).trim().toLowerCase()
+        );
+        return !vals.every((v) => v === vals[0]);
+      })
+    : COMPARE_SPECS;
+
   if (compareList.length === 0) {
     return (
       <div className="compare-empty">
@@ -165,6 +176,14 @@ export const ComparePage = ({ compareList, onRemove, onClear }: ComparePageProps
         </div>
 
         <div className="compare-header-actions">
+          <label className="compare-hide-toggle">
+            <input
+              type="checkbox"
+              checked={hideMatching}
+              onChange={(e) => setHideMatching(e.target.checked)}
+            />
+            Hide matching specs
+          </label>
           <Link to="/browse" className="btn btn-ghost btn-sm">+ Add another</Link>
           <button className="btn btn-ghost btn-sm" onClick={onClear}>Clear all</button>
         </div>
@@ -301,7 +320,7 @@ export const ComparePage = ({ compareList, onRemove, onClear }: ComparePageProps
           </thead>
 
           <tbody>
-            {COMPARE_SPECS.map((spec) => {
+            {visibleSpecs.map((spec) => {
               if (spec.field === "__image__") {
                 return (
                   <tr key="image" className="compare-image-row">

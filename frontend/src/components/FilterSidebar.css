@@ -299,12 +299,28 @@
     max-height: 85vh;
     background: var(--bg-primary);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    overflow-y: auto;
     animation: sheet-slide-up 0.3s ease;
+    /* Flex column so footer pins to bottom and content scrolls */
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The sidebar-content (header + chips + sections) scrolls */
+  .mobile-filter-sheet .sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* critical for flex child scrolling */
   }
 
   @keyframes sheet-slide-up {
     from { transform: translateY(100%); }
     to   { transform: translateY(0); }
   }
+}
+
+.mobile-filter-footer {
+  padding: 12px 16px env(safe-area-inset-bottom, 16px);
+  border-top: 1px solid var(--border);
+  background: var(--bg-primary);
+  flex-shrink: 0; /* never shrink — always visible */
 }

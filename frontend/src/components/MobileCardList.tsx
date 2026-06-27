@@ -179,15 +179,19 @@ const MobileCard = ({
         >
           <StarIcon filled={isStarred} />
         </button>
-        <input
-          type="checkbox"
-          checked={isCompared}
-          disabled={isCompareDisabled}
-          onChange={() => toggleCompare(laptop)}
-          className="compare-checkbox"
-          title="Compare"
-          aria-label="Add to comparison"
-        />
+        <label
+            className="compare-checkbox-wrap"
+            title="Compare"
+            aria-label="Add to comparison"
+          >
+            <input
+              type="checkbox"
+              checked={isCompared}
+              disabled={isCompareDisabled}
+              onChange={() => toggleCompare(laptop)}
+              className="compare-checkbox"
+            />
+          </label>
       </div>
     </div>
   );

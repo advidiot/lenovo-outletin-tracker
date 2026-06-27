@@ -40,7 +40,7 @@ interface LenovoCardProps {
   toggleCompare: (laptop: LaptopData) => void;
 }
 
-const LenovoCard = ({
+export const LenovoCard = ({
   laptop,
   watchlist,
   toggleWatch,

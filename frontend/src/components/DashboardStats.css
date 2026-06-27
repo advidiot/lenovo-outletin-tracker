@@ -184,6 +184,11 @@
   }
 }
 
+/* Wrapper for fade overlays */
+.stats-strip-wrap {
+  position: relative;
+}
+
 @media (max-width: 600px) {
   .stats-strip {
     display: flex;
@@ -191,10 +196,33 @@
     scrollbar-width: none;
     gap: 10px;
     padding: 10px 12px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
   }
   .stats-strip::-webkit-scrollbar { display: none; }
   .stat-card {
     min-width: 180px;
     flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+
+  /* Fade edge indicators */
+  .stats-strip-wrap::before,
+  .stats-strip-wrap::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .stats-strip-wrap::before {
+    left: 0;
+    background: linear-gradient(to right, var(--bg-secondary), transparent);
+  }
+  .stats-strip-wrap::after {
+    right: 0;
+    background: linear-gradient(to left, var(--bg-secondary), transparent);
   }
 }

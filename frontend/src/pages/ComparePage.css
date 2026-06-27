@@ -42,12 +42,40 @@
 
 .compare-header-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.compare-hide-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  transition: background var(--transition), border-color var(--transition);
+}
+.compare-hide-toggle:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+.compare-hide-toggle input {
+  accent-color: var(--accent-teal);
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
 }
 
 /* Table wrapper */
 .compare-table-wrap {
-  overflow-x: auto;
+  overflow: auto;               /* both axes — enables sticky thead */
+  max-height: calc(100vh - 240px);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   box-shadow: var(--card-shadow);
@@ -72,8 +100,9 @@
   background: var(--bg-secondary);
   border-bottom: 2px solid var(--border);
   position: sticky;
+  top: 0;
   left: 0;
-  z-index: 2;
+  z-index: 4; /* above laptop-col (z:2) AND spec-label (z:1) */
 }
 
 .compare-laptop-col {
@@ -83,6 +112,9 @@
   border-bottom: 2px solid var(--border);
   border-left: 1px solid var(--border);
   background: var(--card-bg);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .compare-col-thumb {

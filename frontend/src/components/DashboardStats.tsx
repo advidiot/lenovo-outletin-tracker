@@ -156,13 +156,16 @@ export const DashboardStats = ({
 
   if (isLoading) {
     return (
-      <div className="stats-strip">
-        {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+      <div className="stats-strip-wrap">
+        <div className="stats-strip">
+          {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+        </div>
       </div>
     );
   }
 
   return (
+    <div className="stats-strip-wrap">
     <div className="stats-strip">
 
       {/* Card 1: Total/Available Laptops + Price Distribution */}
@@ -344,6 +347,7 @@ export const DashboardStats = ({
         )}
       </div>
 
+      </div>
     </div>
   );
 };

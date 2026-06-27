@@ -5,6 +5,7 @@ import { DashboardStats } from "../components/DashboardStats";
 import { FilterSidebar, FilterState, DEFAULT_FILTERS } from "../components/FilterSidebar";
 import { FloatingCompareBar } from "../components/FloatingCompareBar";
 import { MobileCardList } from "../components/MobileCardList";
+import { MobileCardGrid } from "../components/MobileCardGrid";
 import { LenovoCardGrid } from "../components/LenovoCardGrid";
 import { useToast } from "../components/ToastProvider";
 import { retrieveSettings } from "../gridSettings";
@@ -437,6 +438,15 @@ export const DashboardPage = ({
     }
   });
 
+  const [mobileLayout, setMobileLayout] = useState<"list" | "card">(() => {
+    try {
+      const saved = localStorage.getItem("trackfurb_mobile_layout");
+      return saved === "card" ? "card" : "list";
+    } catch {
+      return "list";
+    }
+  });
+
   const [sortBy, setSortBy] = useState<string>(() => {
     try {
       const settings = retrieveSettings();
@@ -467,6 +477,10 @@ export const DashboardPage = ({
   useEffect(() => {
     localStorage.setItem("trackfurb_view_mode", viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem("trackfurb_mobile_layout", mobileLayout);
+  }, [mobileLayout]);
 
   const gridRef = useRef<GridHandle>(null);
 
@@ -624,6 +638,26 @@ export const DashboardPage = ({
             Filters
           </button>
 
+          {/* Mobile layout toggle */}
+          <div className="mobile-view-toggle mobile-only-btn">
+            <button
+              className={`btn btn-sm ${mobileLayout === "list" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setMobileLayout("list")}
+              title="List View"
+              aria-label="Switch to list view"
+            >
+              ☰
+            </button>
+            <button
+              className={`btn btn-sm ${mobileLayout === "card" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setMobileLayout("card")}
+              title="Card View"
+              aria-label="Switch to card view"
+            >
+              ▦
+            </button>
+          </div>
+
           <span className="toolbar-count">
             {filteredData.length.toLocaleString()} laptop
             {filteredData.length !== 1 ? "s" : ""}
@@ -739,15 +773,25 @@ export const DashboardPage = ({
             )}
           </div>
 
-          {/* Mobile: Card list */}
+          {/* Mobile: Card list or Card grid */}
           <div className="mobile-list-wrap">
-            <MobileCardList
-              data={filteredData}
-              watchlist={watchlist}
-              toggleWatch={handleToggleWatch}
-              compareList={compareList}
-              toggleCompare={handleToggleCompare}
-            />
+            {mobileLayout === "list" ? (
+              <MobileCardList
+                data={filteredData}
+                watchlist={watchlist}
+                toggleWatch={handleToggleWatch}
+                compareList={compareList}
+                toggleCompare={handleToggleCompare}
+              />
+            ) : (
+              <MobileCardGrid
+                data={filteredData}
+                watchlist={watchlist}
+                toggleWatch={handleToggleWatch}
+                compareList={compareList}
+                toggleCompare={handleToggleCompare}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -140,3 +140,41 @@
   .toolbar-view-toggle { display: none; } /* Hide toggle on mobile as mobile only supports card view anyway */
 }
 
+/* Mobile layout view toggle */
+.mobile-view-toggle {
+  display: none; /* hidden on desktop */
+  align-items: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+  gap: 0;
+}
+
+.mobile-view-toggle .btn {
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.mobile-view-toggle .btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.mobile-view-toggle .btn-ghost:hover {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .mobile-view-toggle .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 768px) {
+  .mobile-view-toggle {
+    display: inline-flex;
+  }
+}
