@@ -497,12 +497,12 @@ export const DashboardPage = ({
   }, [laptopData, filters.showUnavailable]);
 
   const gpuModelOptions = useMemo(() => {
-    const rawGpus = laptopData
+    const rawGpus = statsData
       .map((l) => l["graphic-card"] as string)
       .filter(Boolean);
     const cleaned = rawGpus.map(cleanGpuName);
     return Array.from(new Set(cleaned)).sort((a, b) => a.localeCompare(b));
-  }, [laptopData]);
+  }, [statsData]);
 
   const handleBestDealClick = useCallback(
     (code: string) => navigate(`/laptop/${code}`),
