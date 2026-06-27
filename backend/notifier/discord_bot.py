@@ -91,6 +91,9 @@ if is_discord_enabled():
             intents = discord.Intents.default()
             super().__init__(intents=intents)
             self.tree = app_commands.CommandTree(self)
+            self._pending_edits = {}  # product_code -> dict of status details
+            self._flush_task = None
+            self._edit_lock = asyncio.Lock()
 
         async def setup_hook(self) -> None:
             self.tree.add_command(subscribe_command)
@@ -114,6 +117,28 @@ if is_discord_enabled():
 
         async def on_ready(self):
             _log(f"[Discord] Bot ready as {self.user} (ID: {self.user.id})")
+
+        async def close(self) -> None:
+            _log("[Discord] Bot close requested. Flushing pending message edits before shutdown...")
+            try:
+                # Flush pending edits immediately without delays
+                await self.flush_pending_edits_now()
+            except Exception as e:
+                _log(f"[Discord] Error flushing pending edits during shutdown: {e}")
+            await super().close()
+
+        async def flush_pending_edits_now(self) -> None:
+            """Flush pending edits immediately, bypassing the cooldown delay."""
+            async with self._edit_lock:
+                if not self._pending_edits:
+                    return
+                edits_to_process = self._pending_edits.copy()
+                self._pending_edits.clear()
+                if self._flush_task and not self._flush_task.done():
+                    self._flush_task.cancel()
+                    self._flush_task = None
+            
+            await _perform_flush(self, edits_to_process, shutdown=True)
 
     # Commands Definition (Pings version 1.0)
     @app_commands.command(name="subscribe", description="Subscribe current channel to Lenovo Outlet alerts.")
@@ -1213,111 +1238,184 @@ def dispatch_discord_edit(product_code: str, status: str, expire_epoch: Optional
     if not is_discord_enabled() or not _discord_bot or not _discord_bot.is_ready():
         return
 
-    async def do_edit():
-        import time
-        try:
+    async def buffer_and_schedule():
+        async with _discord_bot._edit_lock:
+            # Buffer the request, overwriting any previous status for this product code
+            # (which coalesces duplicate status updates to the latest one)
+            _discord_bot._pending_edits[product_code] = {
+                "status": status,
+                "expire_epoch": expire_epoch
+            }
+            
+            # If a flush is not already scheduled, schedule it in 1.0 second (fixed window cooldown)
+            if _discord_bot._flush_task is None or _discord_bot._flush_task.done():
+                async def delayed_flush():
+                    await asyncio.sleep(1.0)
+                    async with _discord_bot._edit_lock:
+                        edits_to_process = _discord_bot._pending_edits.copy()
+                        _discord_bot._pending_edits.clear()
+                        _discord_bot._flush_task = None
+                    if edits_to_process:
+                        await _perform_flush(_discord_bot, edits_to_process)
+                
+                _discord_bot._flush_task = asyncio.create_task(delayed_flush())
+
+    asyncio.run_coroutine_threadsafe(buffer_and_schedule(), _discord_bot.loop)
+
+async def _perform_flush(bot: "LogazeBot", edits: Dict[str, Dict[str, Any]], shutdown: bool = False) -> None:
+    """Execute the batched edits on Discord messages and SQLite."""
+    import time
+    product_codes = list(edits.keys())
+    if not product_codes:
+        return
+
+    _log(f"[Discord Batch Edit] Starting flush for {len(product_codes)} products. Shutdown mode: {shutdown}")
+
+    # Step 1: Query the database in one single query to retrieve all channel/message mappings
+    try:
+        def db_op():
             conn = get_db_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT channel_id, message_id, event_type 
+                placeholders = ",".join("?" for _ in product_codes)
+                cursor.execute(f"""
+                    SELECT product_code, channel_id, message_id, event_type 
                     FROM discord_sent_messages 
-                    WHERE product_code = ?
-                """, (product_code,))
-                rows = [dict(r) for r in cursor.fetchall()]
+                    WHERE product_code IN ({placeholders})
+                """, product_codes)
+                return [dict(r) for r in cursor.fetchall()]
             finally:
                 conn.close()
-            
-            for row in rows:
-                channel_id = int(row["channel_id"])
-                message_id = int(row["message_id"])
-                original_event_type = row["event_type"]
-                
-                channel = _discord_bot.get_channel(channel_id)
-                if not channel:
-                    try:
-                        channel = await _discord_bot.fetch_channel(channel_id)
-                    except Exception:
-                        continue
-                if not channel:
-                    continue
-                
+        
+        rows = await asyncio.to_thread(db_op)
+    except Exception as e:
+        _log(f"[Discord Batch Edit] Database query error: {e}")
+        return
+
+    # Step 2: Group the updates by (channel_id, message_id)
+    # message_updates: (channel_id, message_id) -> list of (product_code, status_info)
+    message_updates = {}
+    for row in rows:
+        pcode = row["product_code"]
+        channel_id = int(row["channel_id"])
+        message_id = int(row["message_id"])
+        original_event_type = row["event_type"]
+        
+        key = (channel_id, message_id)
+        if key not in message_updates:
+            message_updates[key] = []
+        message_updates[key].append({
+            "product_code": pcode,
+            "original_event_type": original_event_type,
+            "status": edits[pcode]["status"],
+            "expire_epoch": edits[pcode]["expire_epoch"]
+        })
+
+    # Step 3: Edit each unique message
+    for (channel_id, message_id), updates in message_updates.items():
+        try:
+            channel = bot.get_channel(channel_id)
+            if not channel:
                 try:
-                    msg = await channel.fetch_message(message_id)
-                except discord.errors.NotFound:
-                    _purge_discord_message(product_code, channel_id)
-                    continue
+                    channel = await bot.fetch_channel(channel_id)
                 except Exception as e:
-                    _log(f"[Discord Edit] Error fetching message {message_id}: {e}")
+                    _log(f"[Discord Batch Edit] Could not fetch channel {channel_id}: {e}")
                     continue
-                
-                embeds = msg.embeds
-                modified = False
-                new_embeds = []
-                
-                for emb in embeds:
-                    if emb.url and f"/p/{product_code}" in emb.url:
-                        new_emb = emb.copy()
-                        
-                        desc = new_emb.description or ""
-                        if "\n\n" in desc:
-                            desc_clean = desc.split("\n\n")[-1]
-                        else:
-                            desc_clean = desc
-                        
-                        # Rebuild fields to strip stale information
-                        fields_to_process = list(emb.fields)
-                        new_emb.clear_fields()
-                        for field in fields_to_process:
-                            if status == "cart_hold":
-                                if field.name not in ("⏱️ Listed for", "⏱️ Restocked after"):
-                                    new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
-                            elif status == "restocked":
-                                if field.name not in ("⏱️ Listed for", "⏱️ Restocked after", "📉 Old Price"):
-                                    new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
-                            else:
-                                new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
+            if not channel:
+                continue
 
-                        if status == "cart_hold":
-                            new_emb.title = "⚠️ Laptop In Someone's Cart"
-                            new_emb.color = discord.Color.from_rgb(255, 191, 0)
-                            countdown_str = f"<t:{expire_epoch}:R>" if expire_epoch else "15 minutes"
-                            new_emb.description = f"⚠️ **Cart Hold Active** • Reserved in cart. Lock releases {countdown_str}.\n\n{desc_clean}"
-                        
-                        elif status == "sold_out":
-                            new_emb.title = "❌ Laptop Removed / Sold Out"
-                            new_emb.color = discord.Color.red()
-                            sold_epoch = int(time.time())
-                            new_emb.description = f"🔴 **Sold Out** • Confirmed sold at <t:{sold_epoch}:t> (<t:{sold_epoch}:R>).\n\n{desc_clean}"
-                        
-                        elif status == "restocked":
-                            if original_event_type == "price_drop":
-                                new_emb.title = "📉 Price Drop Alert"
-                                new_emb.color = discord.Color.blue()
-                            elif original_event_type == "price_hike":
-                                new_emb.title = "📈 Price Increase"
-                                new_emb.color = discord.Color.gold()
-                            else:
-                                new_emb.title = "🆕 Laptop Added / Back in Stock"
-                                new_emb.color = discord.Color.green()
-                            
-                            new_emb.description = f"🆕 **Back in Stock** • Listing is active.\n\n{desc_clean}"
-                        
-                        new_embeds.append(new_emb)
-                        modified = True
+            try:
+                msg = await channel.fetch_message(message_id)
+            except discord.errors.NotFound:
+                # If message is not found, purge all mappings for these product codes in this channel
+                for upd in updates:
+                    _purge_discord_message(upd["product_code"], channel_id)
+                continue
+            except Exception as e:
+                _log(f"[Discord Batch Edit] Error fetching message {message_id} in channel {channel_id}: {e}")
+                continue
+
+            embeds = msg.embeds
+            modified = False
+            new_embeds = []
+
+            # Create maps for fast lookups
+            updates_map = {upd["product_code"]: upd for upd in updates}
+
+            for emb in embeds:
+                matched_code = None
+                if emb.url:
+                    for pcode in updates_map.keys():
+                        if f"/p/{pcode}" in emb.url:
+                            matched_code = pcode
+                            break
+
+                if matched_code:
+                    upd = updates_map[matched_code]
+                    status = upd["status"]
+                    expire_epoch = upd["expire_epoch"]
+                    original_event_type = upd["original_event_type"]
+
+                    new_emb = emb.copy()
+                    desc = new_emb.description or ""
+                    if "\n\n" in desc:
+                        desc_clean = desc.split("\n\n")[-1]
                     else:
-                        new_embeds.append(emb)
-                
-                if modified:
-                    try:
-                        await msg.edit(embeds=new_embeds)
-                        await asyncio.sleep(0.5)
-                    except Exception as e:
-                        _log(f"[Discord Edit] Error editing message: {e}")
-        except Exception as ex:
-            _log(f"[Discord Edit] Error: {ex}")
+                        desc_clean = desc
 
-    asyncio.run_coroutine_threadsafe(do_edit(), _discord_bot.loop)
+                    # Rebuild fields to strip stale information
+                    fields_to_process = list(emb.fields)
+                    new_emb.clear_fields()
+                    for field in fields_to_process:
+                        if status == "cart_hold":
+                            if field.name not in ("⏱️ Listed for", "⏱️ Restocked after"):
+                                new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
+                        elif status == "restocked":
+                            if field.name not in ("⏱️ Listed for", "⏱️ Restocked after", "📉 Old Price"):
+                                new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
+                        else:
+                            new_emb.add_field(name=field.name, value=field.value, inline=field.inline)
+
+                    if status == "cart_hold":
+                        new_emb.title = "⚠️ Laptop In Someone's Cart"
+                        new_emb.color = discord.Color.from_rgb(255, 191, 0)
+                        countdown_str = f"<t:{expire_epoch}:R>" if expire_epoch else "15 minutes"
+                        new_emb.description = f"⚠️ **Cart Hold Active** • Reserved in cart. Lock releases {countdown_str}.\n\n{desc_clean}"
+                    
+                    elif status == "sold_out":
+                        new_emb.title = "❌ Laptop Removed / Sold Out"
+                        new_emb.color = discord.Color.red()
+                        sold_epoch = int(time.time())
+                        new_emb.description = f"🔴 **Sold Out** • Confirmed sold at <t:{sold_epoch}:t> (<t:{sold_epoch}:R>).\n\n{desc_clean}"
+                    
+                    elif status == "restocked":
+                        if original_event_type == "price_drop":
+                            new_emb.title = "📉 Price Drop Alert"
+                            new_emb.color = discord.Color.blue()
+                        elif original_event_type == "price_hike":
+                            new_emb.title = "📈 Price Increase"
+                            new_emb.color = discord.Color.gold()
+                        else:
+                            new_emb.title = "🆕 Laptop Added / Back in Stock"
+                            new_emb.color = discord.Color.green()
+                        
+                        new_emb.description = f"🆕 **Back in Stock** • Listing is active.\n\n{desc_clean}"
+
+                    new_embeds.append(new_emb)
+                    modified = True
+                else:
+                    new_embeds.append(emb)
+
+            if modified:
+                try:
+                    await msg.edit(embeds=new_embeds)
+                    if not shutdown:
+                        await asyncio.sleep(0.5)  # Cooldown delay between edits to respect rate limits
+                except Exception as e:
+                    _log(f"[Discord Batch Edit] Error editing message {message_id}: {e}")
+
+        except Exception as ex:
+            _log(f"[Discord Batch Edit] Error processing message {message_id}: {ex}")
 
 def _purge_discord_message(product_code: str, channel_id: int):
     try:

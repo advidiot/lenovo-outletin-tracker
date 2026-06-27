@@ -138,13 +138,19 @@ class TestDiscordBotLogic(unittest.TestCase):
         import asyncio
         import discord
         from unittest.mock import MagicMock, AsyncMock
-        from backend.notifier.discord_bot import dispatch_discord_edit
+        from backend.notifier.discord_bot import dispatch_discord_edit, _perform_flush
         
         # Make run_coroutine_threadsafe execute the coroutine synchronously
         def run_sync(coro, loop):
             asyncio.run(coro)
         mock_run_coroutine.side_effect = run_sync
         
+        # Setup bot state
+        mock_bot._pending_edits = {}
+        mock_bot._edit_lock = asyncio.Lock()
+        mock_bot._flush_task = None
+        mock_bot.is_ready.return_value = True
+
         # Setup database mock
         mock_conn = MagicMock()
         mock_db_conn.return_value = mock_conn
@@ -152,7 +158,7 @@ class TestDiscordBotLogic(unittest.TestCase):
         
         # --- TEST 1: Transition to cart_hold ---
         mock_cursor.fetchall.return_value = [
-            {"channel_id": "123", "message_id": "456", "event_type": "added"}
+            {"product_code": "123", "channel_id": "123", "message_id": "456", "event_type": "added"}
         ]
         
         mock_channel = MagicMock()
@@ -173,6 +179,18 @@ class TestDiscordBotLogic(unittest.TestCase):
         
         dispatch_discord_edit("123", "cart_hold", expire_epoch=1700000000)
         
+        # In our batched code, dispatch_discord_edit schedules _perform_flush.
+        # We manually call _perform_flush to verify the logic since we mock run_coroutine_threadsafe.
+        # When dispatch_discord_edit was called, it populated _pending_edits.
+        self.assertIn("123", mock_bot._pending_edits)
+        self.assertEqual(mock_bot._pending_edits["123"]["status"], "cart_hold")
+
+        # Let's perform flush on the pending edits
+        edits = mock_bot._pending_edits.copy()
+        mock_bot._pending_edits.clear()
+        
+        asyncio.run(_perform_flush(mock_bot, edits))
+
         mock_msg.edit.assert_called_once()
         edited_embeds = mock_msg.edit.call_args[1]["embeds"]
         self.assertEqual(len(edited_embeds), 1)
@@ -189,7 +207,7 @@ class TestDiscordBotLogic(unittest.TestCase):
         # --- TEST 2: Transition to restocked from removed ---
         mock_msg.edit.reset_mock()
         mock_cursor.fetchall.return_value = [
-            {"channel_id": "123", "message_id": "456", "event_type": "removed"}
+            {"product_code": "123", "channel_id": "123", "message_id": "456", "event_type": "removed"}
         ]
         
         removed_embed = discord.Embed(
@@ -203,6 +221,10 @@ class TestDiscordBotLogic(unittest.TestCase):
         mock_msg.embeds = [removed_embed]
         
         dispatch_discord_edit("123", "restocked")
+        edits = mock_bot._pending_edits.copy()
+        mock_bot._pending_edits.clear()
+        
+        asyncio.run(_perform_flush(mock_bot, edits))
         
         mock_msg.edit.assert_called_once()
         edited_embeds = mock_msg.edit.call_args[1]["embeds"]
@@ -219,7 +241,7 @@ class TestDiscordBotLogic(unittest.TestCase):
         # --- TEST 3: Transition to restocked from price_drop ---
         mock_msg.edit.reset_mock()
         mock_cursor.fetchall.return_value = [
-            {"channel_id": "123", "message_id": "456", "event_type": "price_drop"}
+            {"product_code": "123", "channel_id": "123", "message_id": "456", "event_type": "price_drop"}
         ]
         
         price_drop_embed = discord.Embed(
@@ -233,6 +255,10 @@ class TestDiscordBotLogic(unittest.TestCase):
         mock_msg.embeds = [price_drop_embed]
         
         dispatch_discord_edit("123", "restocked")
+        edits = mock_bot._pending_edits.copy()
+        mock_bot._pending_edits.clear()
+        
+        asyncio.run(_perform_flush(mock_bot, edits))
         
         mock_msg.edit.assert_called_once()
         edited_embeds = mock_msg.edit.call_args[1]["embeds"]
@@ -242,6 +268,73 @@ class TestDiscordBotLogic(unittest.TestCase):
         
         field_names = [f.name for f in emb.fields]
         self.assertNotIn("📉 Old Price", field_names)
+
+    @unittest.mock.patch("backend.notifier.discord_bot.is_discord_enabled", return_value=True)
+    @unittest.mock.patch("backend.notifier.discord_bot._discord_bot")
+    @unittest.mock.patch("backend.notifier.discord_bot.get_db_connection")
+    @unittest.mock.patch("asyncio.run_coroutine_threadsafe")
+    def test_dispatch_discord_edit_batching_and_shutdown(self, mock_run_coroutine, mock_db_conn, mock_bot, mock_enabled):
+        import asyncio
+        from unittest.mock import MagicMock, AsyncMock
+        from backend.notifier.discord_bot import dispatch_discord_edit, _perform_flush
+        
+        # Make run_coroutine_threadsafe execute the coroutine synchronously
+        def run_sync(coro, loop):
+            asyncio.run(coro)
+        mock_run_coroutine.side_effect = run_sync
+        
+        # Setup bot state
+        mock_bot._pending_edits = {}
+        mock_bot._edit_lock = asyncio.Lock()
+        mock_bot._flush_task = None
+        mock_bot.is_ready.return_value = True
+
+        # Buffer multiple product edits
+        dispatch_discord_edit("A1", "cart_hold")
+        dispatch_discord_edit("B2", "sold_out")
+        dispatch_discord_edit("A1", "sold_out")  # Coalesce: A1 changes status from cart_hold to sold_out
+
+        self.assertEqual(len(mock_bot._pending_edits), 2)
+        self.assertEqual(mock_bot._pending_edits["A1"]["status"], "sold_out")
+        self.assertEqual(mock_bot._pending_edits["B2"]["status"], "sold_out")
+
+        # Mock database connection
+        mock_conn = MagicMock()
+        mock_db_conn.return_value = mock_conn
+        mock_cursor = mock_conn.cursor.return_value
+        
+        # Both products mapped to same channel and message
+        mock_cursor.fetchall.return_value = [
+            {"product_code": "A1", "channel_id": "11", "message_id": "22", "event_type": "added"},
+            {"product_code": "B2", "channel_id": "11", "message_id": "22", "event_type": "added"}
+        ]
+        
+        mock_channel = MagicMock()
+        mock_msg = MagicMock()
+        mock_msg.edit = AsyncMock()
+        mock_channel.fetch_message = AsyncMock(return_value=mock_msg)
+        mock_bot.get_channel.return_value = mock_channel
+        
+        # Mock message embeds
+        import discord
+        embed_a = discord.Embed(title="A", url="https://lenovo.com/p/A1")
+        embed_b = discord.Embed(title="B", url="https://lenovo.com/p/B2")
+        mock_msg.embeds = [embed_a, embed_b]
+
+        # Flush
+        edits = mock_bot._pending_edits.copy()
+        mock_bot._pending_edits.clear()
+        asyncio.run(_perform_flush(mock_bot, edits))
+
+        # Should retrieve channel/message, fetch message ONCE, edit ONCE
+        mock_bot.get_channel.assert_called_with(11)
+        mock_channel.fetch_message.assert_called_once_with(22)
+        mock_msg.edit.assert_called_once()
+        
+        edited_embeds = mock_msg.edit.call_args[1]["embeds"]
+        self.assertEqual(len(edited_embeds), 2)
+        self.assertEqual(edited_embeds[0].title, "❌ Laptop Removed / Sold Out")
+        self.assertEqual(edited_embeds[1].title, "❌ Laptop Removed / Sold Out")
 
 if __name__ == "__main__":
     unittest.main()
