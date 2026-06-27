@@ -441,9 +441,9 @@ export const DashboardPage = ({
   const [mobileLayout, setMobileLayout] = useState<"list" | "card">(() => {
     try {
       const saved = localStorage.getItem("trackfurb_mobile_layout");
-      return saved === "card" ? "card" : "list";
+      return saved === "list" ? "list" : "card";
     } catch {
-      return "list";
+      return "card";
     }
   });
 
