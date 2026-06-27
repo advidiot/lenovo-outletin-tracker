@@ -15,6 +15,9 @@ logger.setLevel(logging.INFO)
 if logger.hasHandlers():
     logger.handlers.clear()
 
+# Ensure the log directory exists
+settings.LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
 # Rotating file handler (5MB size limit, keeping 3 backups)
 file_handler = RotatingFileHandler(settings.LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
 file_handler.setFormatter(logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
